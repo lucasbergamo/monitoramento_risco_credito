@@ -23,3 +23,9 @@ mlartifacts/
 # Instruções locais de ferramentas
 AGENTS.md
 CLAUDE.md
+
+# Dados e evidências locais, somente agregados revisados entram em docs/
+data/
+artifacts/
+state/
+coverage.xml

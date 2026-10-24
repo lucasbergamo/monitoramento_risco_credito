@@ -1,0 +1,34 @@
+name: monitoramento-risco-credito
+
+x-development: &development
+  image: monitoramento-risco-credito:dev
+  build:
+    context: .
+    target: dev
+    args:
+      HOST_UID: ${HOST_UID:-1000}
+      HOST_GID: ${HOST_GID:-1000}
+  user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+  init: true
+  environment:
+    PROJECT_ROOT: /app
+    SEED: ${SEED:-42}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://127.0.0.1:5000}
+    MLFLOW_ENABLE_TELEMETRY: "false"
+    DO_NOT_TRACK: "1"
+    XDG_CACHE_HOME: /tmp/cache
+
+services:
+  runner:
+    <<: *development
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./artifacts:/app/artifacts
+      - ./state:/app/state
+
+  ci:
+    <<: *development
+    # Sem bind mounts: testes usam fixtures e estado temporário dentro da imagem.
+    command: ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]

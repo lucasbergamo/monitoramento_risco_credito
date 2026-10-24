@@ -1,0 +1,10 @@
+**
+!Dockerfile
+!pyproject.toml
+!poetry.lock
+!src/
+!src/**
+!tests/
+!tests/**
+**/__pycache__/
+**/*.pyc
