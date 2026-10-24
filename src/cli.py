@@ -18,6 +18,9 @@ from src.data.contracts import (
 from src.data.ingest import ARCHIVE_NAME, ingest, read_source
 from src.data.prepare import DEMOGRAPHICS, FEATURES, TARGET, prepare
 from src.data.split import split
+from src.models.evaluate import evaluate
+from src.models.registry import PromotionRejected, promote
+from src.models.train import train
 from src.utils.config import DataConfig, Settings, load_data_config
 from src.utils.logger import configure_logging, get_logger
 from src.utils.manifest import content_hash, file_hash, read_manifest, write_manifest
@@ -130,6 +133,10 @@ def read_batch(path: Path) -> pd.DataFrame:
 def main(argv: list[str] | None = None) -> int:
     parser = CommandParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    for command in ("train", "evaluate", "promote"):
+        subcommand = commands.add_parser(command)
+        subcommand.add_argument("--data-dir", type=Path)
+        subcommand.add_argument("--models-dir", type=Path)
     for command in ("data", "inspect-data"):
         subcommand = commands.add_parser(command)
         subcommand.add_argument("--data-dir", type=Path)
@@ -150,11 +157,22 @@ def main(argv: list[str] | None = None) -> int:
         overrides = {}
         if getattr(args, "data_dir", None) is not None:
             overrides["data_dir"] = args.data_dir
+        if getattr(args, "models_dir", None) is not None:
+            overrides["models_dir"] = args.models_dir
         if args.command == "data" and args.archive is not None:
             overrides["dataset_archive"] = args.archive
         settings = Settings(**overrides)
         configure_logging(settings.log_level)
-        if args.command == "validate":
+        if args.command in {"train", "evaluate", "promote"}:
+            result = {"train": train, "evaluate": evaluate, "promote": promote}[args.command](
+                settings
+            )
+            logger.info("model_command_completed", stage=args.command, status="success")
+            print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
+            if args.command == "train" and not result["gate_passed"]:
+                logger.warning("model_gate_rejected", status="rejected")
+                return 2
+        elif args.command == "validate":
             config = load_contract_config(settings.project_root / "configs/contracts.yaml")
             table = read_batch(args.batch)
             if args.schema == "source":
@@ -176,12 +194,21 @@ def main(argv: list[str] | None = None) -> int:
             result = inspect_dataset(settings)
             print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
         return 0
+    except PromotionRejected:
+        logger.warning("model_gate_rejected", status="rejected")
+        return 2
     except ContractRejected as error:
         logger.warning("contract_rejected", status="rejected", **error.result.model_dump())
         return 2
     except Exception as error:
         # Mensagens de bibliotecas podem conter caminhos ou valores individuais.
-        event = "validation_command_failed" if command == "validate" else "data_command_failed"
+        event = (
+            "model_command_failed"
+            if command in {"train", "evaluate", "promote"}
+            else "validation_command_failed"
+            if command == "validate"
+            else "data_command_failed"
+        )
         logger.error(event, error_type=type(error).__name__, status="failed")
         return 1
 

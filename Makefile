@@ -10,7 +10,7 @@ help: ## Lista os comandos disponíveis.
 
 setup: ## Prepara .env e diretórios graváveis com o usuário do host.
 	@test -f .env || cp .env.example .env
-	mkdir -p docs/evidencias data/bronze data/silver data/gold data/scenarios models/staging models/current artifacts/runs state/mlflow
+	mkdir -p docs/evidencias data/bronze data/silver data/gold data/scenarios models artifacts/runs state/mlflow
 	@for dir in data models artifacts state; do test -w "$$dir" || { echo "Diretório sem permissão de escrita: $$dir"; exit 1; }; done
 
 lock: ## Resolve dependências com Python/Poetry isolados em Docker.
@@ -64,3 +64,23 @@ validate: ## Valida BATCH explícito; features e labels exigem KEYS separado.
 
 docker-validate: ## Valida arquivo do host montado somente para leitura.
 	$(COMPOSE) run --rm --volume "$(abspath $(BATCH)):/input/batch$(suffix $(BATCH)):ro" $(if $(KEYS),--volume "$(abspath $(KEYS)):/input/keys$(suffix $(KEYS)):ro") runner python -m src.cli validate --batch "/input/batch$(suffix $(BATCH))" --schema "$(SCHEMA)" $(if $(KEYS),--keys "/input/keys$(suffix $(KEYS))")
+
+.PHONY: train evaluate promote docker-train docker-evaluate docker-promote
+
+train: ## Treina HGB/Dummy e congela validação e seleção em staging.
+	poetry run python -m src.cli train
+
+evaluate: ## Avalia teste com decisões congeladas e publica evidência agregada.
+	poetry run python -m src.cli evaluate
+
+promote: ## Promove staging atomicamente somente com gate de validação aprovado.
+	poetry run python -m src.cli promote
+
+docker-train: ## Treina e congela modelo em Docker.
+	$(COMPOSE) run --rm runner python -m src.cli train
+
+docker-evaluate: ## Avalia teste e publica evidência agregada em Docker.
+	$(COMPOSE) run --rm runner python -m src.cli evaluate
+
+docker-promote: ## Promove modelo aprovado em Docker.
+	$(COMPOSE) run --rm runner python -m src.cli promote

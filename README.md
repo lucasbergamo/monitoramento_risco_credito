@@ -11,10 +11,11 @@ Fundação implementada e verificada em Docker com Python 3.12.15. O lockfile fo
 gerado com Poetry 2.5.1. Os 31 testes passaram, incluindo integração real entre
 Pandera, scikit-learn, Evidently e MLflow. Lint, build e smoke do runtime passaram.
 A aquisição e preparação de dados estão implementadas, com partições por grupos,
-referência de treino e janelas de produção simulada. O modelo de crédito e o
-pipeline de monitoramento permanecem pendentes. A preparação foi validada em Docker
-com dados reais. Com os contratos, a suíte tem 86 testes aprovados e 98% de cobertura
-de `src`, incluindo 99% em `contracts.py`.
+referência de treino e janelas de produção simulada. O classificador de crédito,
+sua avaliação e a promoção local estão implementados.
+O pipeline de monitoramento permanece pendente. A preparação foi validada em Docker
+com dados reais. A suíte usa fixtures próprias, incluindo treino durante os testes e
+falhas de promoção, sem depender de modelos ou dados preparados no host.
 
 Contratos de origem, features e labels e a CLI de validação estão implementados.
 Lotes rejeitados bloqueiam o consumidor e produzem somente diagnóstico agregado.
@@ -225,3 +226,58 @@ raros passam, sem teto estatístico arbitrário. Inferência não exige labels e
 target como coluna extra. Diagnósticos contêm somente regras e contagens; não incluem
 valores, índices, nomes inesperados ou linhas do lote. Detalhes e limites na
 [ADR 0003](docs/adr/0003-contratos-e-bloqueio.md).
+
+## Treino, avaliação e promoção do modelo
+
+Após preparar os dados com `make docker-data` e construir a imagem atual:
+
+```bash
+make docker-train
+make docker-evaluate
+make docker-promote
+```
+
+`docker-train` verifica o manifesto e hashes de treino/validação, ajusta HGB e Dummy
+somente no treino e congela a validação em `models/staging/manifest.json` junto do
+artefato local. O gate exige AUC >=0,65 e Brier menor que o Dummy na validação.
+Reprovação retorna código 2 na CLI e preserva staging para diagnóstico; current
+permanece intacto. Não reduzir o piso nem alterar parâmetros para contornar falhas.
+
+Resultado medido em 24/10/2026: gate aprovado, AUC 0,7789 e Brier 0,1347, contra
+Brier 0,1723 do Dummy. A permutação na validação (cinco repetições, ROC-AUC, seed 42)
+selecionou `pay_0` e `limit_bal` com médias positivas. Teste e produção não participam
+da escolha. Parâmetros e regras ficam em `configs/model.yaml`, sem sobrescrita
+implícita por `SEED` do ambiente.
+
+`docker-evaluate` carrega o staging congelado e somente então avalia o teste. Salva
+`models/evaluations/<version>.json` e a cópia agregada
+[baseline.json](docs/evidencias/baseline.json), com métricas separadas por partição,
+modelo e Dummy. Resultado no teste: AUC 0,7660, Brier 0,1381 e recall 0,3658 no
+limiar 0,5. O limiar é demonstrativo, sem política econômica real.
+
+`docker-promote` recalcula o gate de validação, verifica integridade, copia o bundle
+completo e troca o symlink `models/current` atomicamente. Não consulta métricas de
+teste. Reexecutar os três comandos no ambiente fixado preservou hashes e resultados.
+A versão é hash do manifesto canônico incluindo hash do artefato e configuração;
+`staging` e `current` são ponteiros relativos para versões completas locais.
+`make setup` pode ser repetido depois da promoção sem modificar esses ponteiros.
+
+No ambiente Poetry opcional, os equivalentes são `make train`, `make evaluate` e
+`make promote`. A CLI aceita `--data-dir` e `--models-dir` nesses comandos;
+argumentos explícitos prevalecem sobre caminhos do ambiente. Treino, avaliação,
+promoção e inferência limitam threads pelo código, inclusive fora do Docker.
+
+A função `predict_batch(features, keys, model_dir)` em `src/models/predict.py`
+valida antes de predizer, exige as 19 features na ordem do manifesto e devolve
+scores por ID sem gravá-los. Labels e demografia são rejeitados como colunas extras.
+Carregamento verifica hashes, política, ordem de features e classes. Não carregar
+joblib recebido de terceiros; hashes detectam corrupção, sem autenticar sua origem.
+
+Os testes geram seus próprios dados/modelos em diretórios temporários. Um piso AUC
+1,1 passado somente à fixture impede a promoção e comprova que a versão atual não
+muda. Também são exercitadas falhas na cópia e na troca atômica, corrupção, ordem
+de features e associação de labels por ID. A política padrão continua em 0,65.
+Bundles locais antigos não são apagados automaticamente.
+
+Resultados, hashes e limitações no [model card](docs/model_card.md).
+Detalhes de integridade e atomicidade na [ADR 0004](docs/adr/0004-modelo-e-avaliacao.md).
