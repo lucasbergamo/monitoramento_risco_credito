@@ -14,6 +14,8 @@ A aquisição e preparação de dados estão implementadas, com partições por 
 referência de treino e janelas de produção simulada. O classificador de crédito,
 sua avaliação e a promoção local estão implementados.
 Os quatro cenários reproduzíveis e a avaliação pareada estão implementados.
+A detecção estatística por feature, os relatórios Evidently e os alertas de drift
+também estão implementados.
 O pipeline integrado de monitoramento permanece pendente. A preparação foi validada
 em Docker com dados reais. A suíte usa fixtures próprias, incluindo treino durante os testes e
 falhas de promoção, sem depender de modelos ou dados preparados no host.
@@ -335,3 +337,47 @@ altera as seeds da simulação; a política está em `configs/scenarios.yaml`.
 O efeito medido pertence exclusivamente ao mecanismo do simulador, sem inferência
 causal econômica real ou garantia de anonimato. Hipóteses, diagrama, estimandos,
 incerteza e resultados em [causalidade](docs/causalidade.md).
+
+
+## Detecção estatística e relatórios
+
+Após preparar os dados e gerar os cenários com o modelo promovido, execute:
+
+```bash
+make build
+make docker-detect
+```
+
+O comando compara as 19 features financeiras com Evidently 0.7.23 real. PAY usa
+PSI >=0,25; montantes usam KS bilateral com p <0,01 no relatório. O alerta
+operacional numérico exige p ajustado por Holm <0,01 e D >=0,10, na família das
+13 numéricas da janela. PSI não é p-valor. IDs, labels, demografia, scores e
+metadados do simulador ficam fora da comparação. A configuração estrita está em
+`configs/monitoring.yaml` e não muda com a seed do ambiente.
+
+São executados controle idêntico, quatro janelas completas da validação (restante
+registrado), referência versus stable/data_drift por janela e stable versus
+concept pareados. A CLI informa `run_id`, `comparison_count` e `gate_passed`.
+O gate exige ausência de feature_drift nos controles idênticos/pareados e detecção
+das duas features alteradas na última janela. Alertas em validação são contados
+como falsos alertas do controle, sem ajustar limiares automaticamente.
+
+Cada execução cria `artifacts/runs/<run_id>/summary.json` e `alerts.json`.
+Subdiretórios `<comparação>/<janela>/` contêm `evidently.html`, `evidently.json`
+e `normalized.json`. Abra, por exemplo,
+`artifacts/runs/<run_id>/data_drift/005/evidently.html` no navegador para as seis
+janelas da base atual. O JSON nativo usa `config` para identificar cada métrica;
+o normalizado distingue `report_drift` de `operational_alert`, com método, score,
+amostras, limite, D e p bruto/ajustado quando aplicável.
+
+Snapshots ficam locais e ignorados. Não enviá-los ao Git automaticamente:
+histogramas podem revelar valores reais. Apenas a evidência agregada revisada em
+[detecção](docs/evidencias/deteccao.json) e as tabelas em
+[métricas](docs/metricas.md) são selecionadas para publicação.
+
+A CLI retorna 0 em execução válida, inclusive com feature_drift; 2 se o gate da
+demonstração falhar; 1 para erro operacional ou amostra insuficiente (<20).
+GNU Make retorna 2 para qualquer receita com falha. Nenhum alerta envia mensagens
+externas ou promove modelo. Sem labels, não há conclusão supervisionada sobre
+concept drift. O equivalente Poetry é `make detect`; a CLI aceita `--data-dir`
+e `--models-dir`, além de `ARTIFACTS_DIR` pelas Settings.
