@@ -98,3 +98,11 @@ docker-simulate: ## Gera cenários e manifestos em Docker.
 
 docker-evaluate-scenarios: ## Avalia cenários e publica agregados em Docker.
 	$(COMPOSE) run --rm runner python -m src.cli evaluate-scenarios
+
+.PHONY: detect docker-detect
+
+detect: ## Compara referência, controles e cenários com Evidently real.
+	poetry run python -m src.cli detect
+
+docker-detect: ## Produz snapshots locais e diagnóstico estatístico em Docker.
+	$(COMPOSE) run --rm runner python -m src.cli detect

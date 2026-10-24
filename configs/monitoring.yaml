@@ -1,0 +1,8 @@
+schema_version: 1
+categorical_method: psi
+categorical_threshold: 0.25
+numerical_method: ks
+numerical_threshold: 0.01
+minimum_ks_d: 0.10
+minimum_sample_size: 20
+validation_window_size: 1000
