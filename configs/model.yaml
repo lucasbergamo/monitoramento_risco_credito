@@ -1,0 +1,12 @@
+schema_version: 1
+seed: 42
+threads: 1
+max_iter: 150
+max_leaf_nodes: 15
+learning_rate: 0.1
+l2_regularization: 1.0
+early_stopping: false
+categorical_features: null
+decision_threshold: 0.5
+minimum_validation_auc: 0.65
+importance_repeats: 5
