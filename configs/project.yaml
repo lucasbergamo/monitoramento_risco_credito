@@ -1,0 +1,15 @@
+schema_version: 1
+source_url: https://archive.ics.uci.edu/static/public/350/default%2Bof%2Bcredit%2Bcard%2Bclients.zip
+source_sha256: 56c885f84457f6680f8438f02bfcdac9579323d8a94465ee5f26e32baa727602
+xls_sha256: 30c6be3abd8dcfd3e6096c828bad8c2f011238620f5369220bd60cfc82700933
+archive_member: default of credit card clients.xls
+parser_version: uci-xls-v1
+split_seed: 42
+n_splits: 20
+reference_size: 5000
+window_size: 1000
+minimum_windows: 4
+minimum_rows: 5000
+timeout_seconds: 60
+max_archive_bytes: 20000000
+max_extracted_bytes: 20000000

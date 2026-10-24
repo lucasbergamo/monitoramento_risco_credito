@@ -24,6 +24,7 @@ services:
     <<: *development
     volumes:
       - ./data:/app/data
+      - ./docs/evidencias:/app/docs/evidencias
       - ./models:/app/models
       - ./artifacts:/app/artifacts
       - ./state:/app/state

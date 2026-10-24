@@ -10,7 +10,10 @@ Projeto acadêmico da Fase 4 de Machine Learning Engineering da FIAP.
 Fundação implementada e verificada em Docker com Python 3.12.15. O lockfile foi
 gerado com Poetry 2.5.1. Os 31 testes passaram, incluindo integração real entre
 Pandera, scikit-learn, Evidently e MLflow. Lint, build e smoke do runtime passaram.
-Não há dataset adquirido, modelo de crédito treinado ou pipeline de negócio.
+A aquisição e preparação de dados estão implementadas, com partições por grupos,
+referência de treino e janelas de produção simulada. O modelo de crédito e o
+pipeline de monitoramento permanecem pendentes. A preparação foi validada em Docker
+com dados reais; a suíte atual tem 56 testes aprovados e 97% de cobertura de `src`.
 
 ## Objetivos
 
@@ -105,3 +108,61 @@ credenciais e exceções completas. Mensagens de evento devem ser estáticas.
 
 Detalhes e limites da validação em [ambiente](docs/ambiente.md).
 Decisão de execução em [ADR 0001](docs/adr/0001-execucao-local.md).
+
+## Aquisição e preparação dos dados
+
+Após `make setup` e `make build`, execute:
+
+```bash
+make docker-data
+make docker-inspect-data
+```
+
+`docker-data` baixa o ZIP oficial da UCI na primeira execução, com timeout de 60
+segundos por operação de rede e limite de 20 MB. Verifica os hashes congelados do
+ZIP e do XLS e cria `data/bronze/`, `data/silver/` e `data/gold/`. Nas reexecuções,
+reutiliza o cache bruto verificado. `docker-inspect-data` verifica os hashes de
+todos os arquivos gerados e apresenta somente estatísticas agregadas.
+
+Resultado esperado: 30.000 registros utilizáveis, duas classes em cada partição,
+19 features financeiras, referência fixa extraída do treino e pelo menos quatro
+janelas completas de 1.000 registros de produção. O manifesto local fica em
+`data/gold/dataset_manifest.json`; a cópia agregada para revisão fica em
+`docs/evidencias/dataset_manifest.json`. O comando pode sobrescrever essa cópia
+com uma nova execução válida, preservando o hash congelado da origem. Revisar o
+diff antes de versionar evidências.
+
+Se o download estiver indisponível, obtenha o ZIP pelo botão Download da
+[página UCI](https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients)
+e informe seu caminho absoluto. O arquivo passa pelas mesmas verificações:
+
+```bash
+make docker-data DATASET_ARCHIVE=/caminho/absoluto/dataset.zip
+```
+
+O Make monta esse arquivo somente para leitura no container. Não use um XLS solto
+ou um ZIP recompactado: ambos diferem do arquivo identificado. Hash inesperado
+retorna erro e preserva o manifesto anterior. Não existe opção para ignorar o hash.
+O evento `data_command_failed` informa a classe do erro sem expor valores pessoais.
+
+No ambiente Poetry opcional, os comandos equivalentes são `make data` e
+`make inspect-data`. Para usar ZIP local: `DATASET_ARCHIVE=/caminho/dataset.zip make data`.
+A CLI oferece `python -m src.cli data --archive ... --data-dir ...` e
+`python -m src.cli inspect-data --data-dir ...`. Argumentos explícitos prevalecem
+sobre os caminhos do ambiente. A configuração dos dados vem de
+`configs/project.yaml`, com chaves desconhecidas rejeitadas. `SEED` do ambiente
+não altera a seed 42 do split nem as regras versionadas de dados.
+
+Fonte: Yeh, I. (2009). Default of Credit Card Clients. UCI Machine Learning
+Repository. [DOI 10.24432/C55S3H](https://doi.org/10.24432/C55S3H), licença
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). A transformação realiza
+normalização de nomes/tipos e partições; os arquivos individuais ficam locais.
+Valores monetários estão em NT$, em uma base histórica de Taiwan, com pagamentos
+de abril a setembro de 2005. Essa população não representa automaticamente o
+mercado brasileiro atual. A licença aberta não constitui garantia de anonimização.
+
+Dados individuais, ZIP, XLS e parquet ficam ignorados pelo Git. O manifesto
+versionado contém apenas agregados, schema e hashes. Não enviar tabelas individuais
+ou IDs para repositório, logs ou tracking. Códigos especiais e duplicatas são
+preservados e documentados em [dataset](docs/dataset.md). O algoritmo e suas
+limitações estão na [ADR 0002](docs/adr/0002-dados-e-particoes.md).

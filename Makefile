@@ -10,7 +10,7 @@ help: ## Lista os comandos disponíveis.
 
 setup: ## Prepara .env e diretórios graváveis com o usuário do host.
 	@test -f .env || cp .env.example .env
-	mkdir -p data/bronze data/silver data/gold data/scenarios models/staging models/current artifacts/runs state/mlflow
+	mkdir -p docs/evidencias data/bronze data/silver data/gold data/scenarios models/staging models/current artifacts/runs state/mlflow
 	@for dir in data models artifacts state; do test -w "$$dir" || { echo "Diretório sem permissão de escrita: $$dir"; exit 1; }; done
 
 lock: ## Resolve dependências com Python/Poetry isolados em Docker.
@@ -37,3 +37,21 @@ docker-lint: ## Executa lint e formatação na imagem construída.
 
 docker-test: ## Executa testes sem dados ou modelos do host.
 	$(COMPOSE) run --rm ci python -m pytest -q -p no:cacheprovider --cov=src --cov-report=term-missing --cov-report=xml:/tmp/coverage.xml
+
+.PHONY: data inspect-data docker-data docker-inspect-data
+
+data: ## Adquire, audita e prepara as partições locais.
+	poetry run python -m src.cli data
+
+inspect-data: ## Verifica hashes locais e mostra somente agregados.
+	poetry run python -m src.cli inspect-data
+
+docker-data: ## Prepara dados em Docker, com ZIP local opcional em DATASET_ARCHIVE.
+ifdef DATASET_ARCHIVE
+	$(COMPOSE) run --rm --volume "$(abspath $(DATASET_ARCHIVE)):/input/dataset.zip:ro" --env DATASET_ARCHIVE=/input/dataset.zip runner python -m src.cli data
+else
+	$(COMPOSE) run --rm runner python -m src.cli data
+endif
+
+docker-inspect-data: ## Inspeciona a integridade dos dados locais em Docker.
+	$(COMPOSE) run --rm runner python -m src.cli inspect-data
