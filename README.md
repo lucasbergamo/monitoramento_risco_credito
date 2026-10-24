@@ -36,8 +36,8 @@ docker compose version
 ```
 
 Se `docker info` falhar por permissão, confira a integração da distribuição WSL com
-Docker Desktop e as permissões da sessão. Iniciar o aplicativo não comprova que o
-processo executor tem acesso ao socket. Não use `chmod 777` no socket ou nos volumes.
+Docker Desktop e as permissões do usuário local para acessar o socket.
+Não use `chmod 777` no socket ou nos volumes.
 
 ## Preparação e execução em Docker
 

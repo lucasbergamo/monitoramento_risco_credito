@@ -43,7 +43,7 @@ defini-los se precisar da mesma limitação operacional.
 ## Histórico da primeira preparação, 24/10/2026
 
 - Host disponível: Python 3.11.9 e Poetry 2.4.1. Não atendem ao ambiente do projeto.
-- `docker info`: acesso negado ao socket do daemon nesta sessão.
+- `docker info`: acesso negado ao socket do daemon na preparação inicial.
 - Acesso ao PyPI no shell: falha de resolução DNS.
 - Acesso à API GitHub no shell: falha de conexão.
 - Naquele momento, lock, build e prova conjunta ficaram pendentes.
