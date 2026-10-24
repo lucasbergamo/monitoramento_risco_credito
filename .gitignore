@@ -15,7 +15,7 @@ __pycache__/
 htmlcov/
 
 # Estado gerado
-models/
+/models/
 mlruns/
 mlartifacts/
 *.log
@@ -25,7 +25,13 @@ AGENTS.md
 CLAUDE.md
 
 # Dados e evidências locais, somente agregados revisados entram em docs/
-data/
-artifacts/
-state/
+/data/
+/artifacts/
+/state/
 coverage.xml
+
+# Formatos individuais da aquisição e preparação
+*.xls
+*.xlsx
+*.zip
+*.parquet

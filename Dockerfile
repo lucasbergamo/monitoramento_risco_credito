@@ -38,6 +38,7 @@ ENV PATH="/opt/venv/bin:${PATH}"
 WORKDIR /app
 COPY --from=dependencies /opt/venv /opt/venv
 COPY src ./src
+COPY configs ./configs
 RUN mkdir -p data/bronze data/silver data/gold data/scenarios \
     models/staging models/current artifacts/runs state/mlflow \
     && chown -R app:app /app
