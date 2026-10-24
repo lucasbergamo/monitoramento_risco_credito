@@ -1,0 +1,6 @@
+schema_version: 1
+contract_version: credit-v1
+pay_domain: [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+sex_domain: [1, 2]
+education_domain: [0, 1, 2, 3, 4, 5, 6]
+marriage_domain: [0, 1, 2, 3]

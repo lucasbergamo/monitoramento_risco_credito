@@ -23,6 +23,9 @@ SAFE_FIELDS = frozenset(
         "duration_seconds",
         "error_type",
         "seed",
+        "schema_version",
+        "contract_version",
+        "violations",
     }
 )
 

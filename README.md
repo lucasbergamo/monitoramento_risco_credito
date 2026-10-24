@@ -13,7 +13,11 @@ Pandera, scikit-learn, Evidently e MLflow. Lint, build e smoke do runtime passar
 A aquisição e preparação de dados estão implementadas, com partições por grupos,
 referência de treino e janelas de produção simulada. O modelo de crédito e o
 pipeline de monitoramento permanecem pendentes. A preparação foi validada em Docker
-com dados reais; a suíte atual tem 56 testes aprovados e 97% de cobertura de `src`.
+com dados reais. Com os contratos, a suíte tem 86 testes aprovados e 98% de cobertura
+de `src`, incluindo 99% em `contracts.py`.
+
+Contratos de origem, features e labels e a CLI de validação estão implementados.
+Lotes rejeitados bloqueiam o consumidor e produzem somente diagnóstico agregado.
 
 ## Objetivos
 
@@ -166,3 +170,58 @@ versionado contém apenas agregados, schema e hashes. Não enviar tabelas indivi
 ou IDs para repositório, logs ou tracking. Códigos especiais e duplicatas são
 preservados e documentados em [dataset](docs/dataset.md). O algoritmo e suas
 limitações estão na [ADR 0002](docs/adr/0002-dados-e-particoes.md).
+
+## Contratos e rejeição de lotes
+
+Após `make build`, valide a janela preparada, sem alvo nas features:
+
+```bash
+make docker-validate BATCH=data/gold/windows/000/features.parquet KEYS=data/gold/windows/000/keys.parquet
+make docker-validate SCHEMA=labels BATCH=data/gold/windows/000/labels.parquet KEYS=data/gold/windows/000/keys.parquet
+```
+
+O caminho de `BATCH` é explícito. Features e labels exigem `KEYS` separado. O Make
+monta cada arquivo do host somente para leitura, inclusive caminhos externos ao
+repositório. `SCHEMA=source` recebe a origem normalizada antes de `group_id`, sem
+arquivo de chaves adicional. Formatos aceitos: `.csv` e `.parquet`.
+No ambiente Poetry, usar os mesmos argumentos com `make validate`.
+
+A demonstração abaixo usa exclusivamente os exemplos sintéticos versionados e não
+depende da aquisição da UCI:
+
+```bash
+make docker-validate BATCH=docs/examples/valid.csv KEYS=docs/examples/keys.csv
+make docker-validate BATCH=docs/examples/invalid.csv KEYS=docs/examples/duplicate_keys.csv
+```
+
+O primeiro comando retorna sucesso e evento JSON `contract_accepted`, com três
+linhas aceitas. O segundo falha, com evento `contract_rejected`, três linhas
+rejeitadas e todas as violações: `not_null` em `limit_bal`, `unique_id` nas chaves
+e `nonnegative_payment` em `pay_amt6`. A contagem de duplicidade inclui as duas
+ocorrências do ID. Nenhuma linha é corrigida ou descartada. Não são gerados scores.
+
+O processo Python retorna **0** para válido, **2** para rejeitado e **1** para erro
+operacional. O próprio GNU Make retorna 2 quando qualquer receita falha, inclusive
+erro operacional. Para verificar especificamente o código da CLI em Docker:
+
+```bash
+docker compose run --rm --volume "$PWD/docs/examples:/input:ro" runner python -m src.cli validate --batch /input/invalid.csv --keys /input/duplicate_keys.csv
+code=$?
+test "$code" -eq 2
+
+docker compose run --rm runner python -m src.cli validate --batch /app/data/arquivo-ausente.csv --keys /app/data/chaves-ausentes.csv
+code=$?
+test "$code" -eq 1
+```
+
+Execute essas verificações em um shell sem `set -e`; o código é capturado logo após
+o comando esperado falhar. No ambiente Poetry: `poetry run python -m src.cli validate
+--batch ... --keys ...` mantém os mesmos códigos.
+
+Os contratos exigem tipos, ausência de nulos, finitude, colunas conhecidas e IDs
+únicos. Limite deve ser positivo, pagamentos não negativos, PAY pertence ao domínio
+versionado e labels são binários com associação 1:1. Faturas negativas e montantes
+raros passam, sem teto estatístico arbitrário. Inferência não exige labels e rejeita
+target como coluna extra. Diagnósticos contêm somente regras e contagens; não incluem
+valores, índices, nomes inesperados ou linhas do lote. Detalhes e limites na
+[ADR 0003](docs/adr/0003-contratos-e-bloqueio.md).

@@ -6,6 +6,15 @@ import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import pandas as pd
+
+from src.data.contracts import (
+    ContractRejected,
+    load_contract_config,
+    validate_batch,
+    validate_labels,
+    validate_table,
+)
 from src.data.ingest import ARCHIVE_NAME, ingest, read_source
 from src.data.prepare import DEMOGRAPHICS, FEATURES, TARGET, prepare
 from src.data.split import split
@@ -104,26 +113,62 @@ def inspect_dataset(settings: Settings) -> dict:
     return manifest
 
 
+class CommandParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise ValueError("Argumentos de comando inválidos")
+
+
+def read_batch(path: Path) -> pd.DataFrame:
+    """Formatos explícitos; CSV usa inferência de tipos, sem correção de valores."""
+    if path.suffix == ".csv":
+        return pd.read_csv(path)
+    if path.suffix == ".parquet":
+        return pd.read_parquet(path)
+    raise ValueError("Formato de lote não suportado")
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = CommandParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     for command in ("data", "inspect-data"):
         subcommand = commands.add_parser(command)
         subcommand.add_argument("--data-dir", type=Path)
         if command == "data":
             subcommand.add_argument("--archive", type=Path)
-    args = parser.parse_args(argv)
+    validation = commands.add_parser("validate")
+    validation.add_argument("--batch", type=Path, required=True)
+    validation.add_argument("--keys", type=Path)
+    validation.add_argument(
+        "--schema", choices=("features", "source", "labels"), default="features"
+    )
     configure_logging()
     logger = get_logger()
+    command = None
     try:
+        args = parser.parse_args(argv)
+        command = args.command
         overrides = {}
-        if args.data_dir is not None:
+        if getattr(args, "data_dir", None) is not None:
             overrides["data_dir"] = args.data_dir
         if args.command == "data" and args.archive is not None:
             overrides["dataset_archive"] = args.archive
         settings = Settings(**overrides)
         configure_logging(settings.log_level)
-        if args.command == "data":
+        if args.command == "validate":
+            config = load_contract_config(settings.project_root / "configs/contracts.yaml")
+            table = read_batch(args.batch)
+            if args.schema == "source":
+                result = validate_table(table, "source", config)
+                if not result.valid:
+                    raise ContractRejected(result)
+            else:
+                if args.keys is None:
+                    raise ValueError("Chaves do lote exigidas")
+                keys = read_batch(args.keys)
+                validator = validate_batch if args.schema == "features" else validate_labels
+                result = validator(table, keys, config)
+            logger.info("contract_accepted", status="success", **result.model_dump())
+        elif args.command == "data":
             config = load_data_config(settings.project_root / "configs/project.yaml")
             result = prepare_dataset(settings, config)
             logger.info("dataset_prepared", row_count=result["row_count"], status="success")
@@ -131,9 +176,13 @@ def main(argv: list[str] | None = None) -> int:
             result = inspect_dataset(settings)
             print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
         return 0
+    except ContractRejected as error:
+        logger.warning("contract_rejected", status="rejected", **error.result.model_dump())
+        return 2
     except Exception as error:
         # Mensagens de bibliotecas podem conter caminhos ou valores individuais.
-        logger.error("data_command_failed", error_type=type(error).__name__, status="failed")
+        event = "validation_command_failed" if command == "validate" else "data_command_failed"
+        logger.error(event, error_type=type(error).__name__, status="failed")
         return 1
 
 
