@@ -13,8 +13,9 @@ Pandera, scikit-learn, Evidently e MLflow. Lint, build e smoke do runtime passar
 A aquisição e preparação de dados estão implementadas, com partições por grupos,
 referência de treino e janelas de produção simulada. O classificador de crédito,
 sua avaliação e a promoção local estão implementados.
-O pipeline de monitoramento permanece pendente. A preparação foi validada em Docker
-com dados reais. A suíte usa fixtures próprias, incluindo treino durante os testes e
+Os quatro cenários reproduzíveis e a avaliação pareada estão implementados.
+O pipeline integrado de monitoramento permanece pendente. A preparação foi validada
+em Docker com dados reais. A suíte usa fixtures próprias, incluindo treino durante os testes e
 falhas de promoção, sem depender de modelos ou dados preparados no host.
 
 Contratos de origem, features e labels e a CLI de validação estão implementados.
@@ -281,3 +282,56 @@ Bundles locais antigos não são apagados automaticamente.
 
 Resultados, hashes e limitações no [model card](docs/model_card.md).
 Detalhes de integridade e atomicidade na [ADR 0004](docs/adr/0004-modelo-e-avaliacao.md).
+
+## Demonstração dos cenários e avaliação pareada
+
+Após preparar os dados, treinar, avaliar e promover o modelo, execute:
+
+```bash
+make docker-simulate
+make docker-evaluate-scenarios
+```
+
+`docker-simulate` usa o modelo congelado em `models/current` e as seis janelas
+reservadas de 1.000 registros. Gera `stable`, `data_drift` e `concept_drift` em
+cada janela e `invalid` somente na primeira. Dados, modelo, treino e referência
+originais são preservados. A versão local fica em
+`data/scenarios/versions/<hash>/`, apontada por `data/scenarios/current`.
+Uma falha de geração preserva o ponteiro anterior; versões antigas não são apagadas.
+
+Cada janela tem features e chaves separadas, manifesto, scores quando válidos e
+labels quando disponíveis. O manifesto inclui seeds, hashes, transformações,
+intensidades, versão do modelo e origem dos rótulos. U fica em `latent.parquet`
+local. Dados individuais não são publicados. Reexecutar os comandos com as mesmas
+entradas/configuração preserva a geração e os agregados byte a byte.
+
+Resultados esperados e medidos em 24/10/2026:
+
+- `invalid`: rejeição por nulo, ID duplicado e pagamento negativo; nenhum score.
+  A rejeição esperada faz parte da geração e não interrompe os demais cenários.
+- `data_drift`: contrato aceito e predições disponíveis; só `pay_0` e `limit_bal`
+  transformadas. Performance `null`, status `labels_unavailable`, pois os labels
+  originais não são reutilizados após alterar X.
+- `concept_drift`: features e scores idênticos ao controle por janela. Labels
+  sintéticos separados, choque de 0 a 0,35. Em r=0, o controle é reproduzido.
+
+`docker-evaluate-scenarios` confere hashes, associa labels por ID e salva
+`data/scenarios/evaluation.json` e a evidência agregada
+[scenarios.json](docs/evidencias/scenarios.json). AUC, AP, Brier, recall e demais
+métricas ficam separadas por janela/cenário. Ausência de labels é explícita.
+Na última janela, o Brier aumentou 0,177789, IC95% pareado
+[0,157599; 0,199006], com 1.000 reamostragens e seed 42. O critério >0,02 com limite
+inferior >0 foi atendido. O default adicional foi 0,272, contra 0,27055 esperado.
+
+A CLI devolve 0 para geração/avaliação aceita, 2 para critério de degradação
+reprovado e 1 para erro operacional. GNU Make devolve 2 para receita com falha;
+consulte o JSON para distinguir reprovação de erro operacional. Um critério
+reprovado permanece registrado, sem alterar seeds ou limiares automaticamente.
+
+Os equivalentes Poetry são `make simulate` e `make evaluate-scenarios`.
+A CLI aceita `--data-dir` e `--models-dir` nos dois comandos. Seed ambiental não
+altera as seeds da simulação; a política está em `configs/scenarios.yaml`.
+
+O efeito medido pertence exclusivamente ao mecanismo do simulador, sem inferência
+causal econômica real ou garantia de anonimato. Hipóteses, diagrama, estimandos,
+incerteza e resultados em [causalidade](docs/causalidade.md).

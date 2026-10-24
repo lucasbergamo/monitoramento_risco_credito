@@ -84,3 +84,17 @@ docker-evaluate: ## Avalia teste e publica evidência agregada em Docker.
 
 docker-promote: ## Promove modelo aprovado em Docker.
 	$(COMPOSE) run --rm runner python -m src.cli promote
+
+.PHONY: simulate evaluate-scenarios docker-simulate docker-evaluate-scenarios
+
+simulate: ## Gera quatro cenários determinísticos com modelo current congelado.
+	poetry run python -m src.cli simulate
+
+evaluate-scenarios: ## Associa labels e mede efeito pareado com bootstrap.
+	poetry run python -m src.cli evaluate-scenarios
+
+docker-simulate: ## Gera cenários e manifestos em Docker.
+	$(COMPOSE) run --rm runner python -m src.cli simulate
+
+docker-evaluate-scenarios: ## Avalia cenários e publica agregados em Docker.
+	$(COMPOSE) run --rm runner python -m src.cli evaluate-scenarios
