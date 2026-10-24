@@ -55,3 +55,12 @@ endif
 
 docker-inspect-data: ## Inspeciona a integridade dos dados locais em Docker.
 	$(COMPOSE) run --rm runner python -m src.cli inspect-data
+
+.PHONY: validate docker-validate
+SCHEMA ?= features
+
+validate: ## Valida BATCH explícito; features e labels exigem KEYS separado.
+	poetry run python -m src.cli validate --batch "$(BATCH)" --schema "$(SCHEMA)" $(if $(KEYS),--keys "$(KEYS)")
+
+docker-validate: ## Valida arquivo do host montado somente para leitura.
+	$(COMPOSE) run --rm --volume "$(abspath $(BATCH)):/input/batch$(suffix $(BATCH)):ro" $(if $(KEYS),--volume "$(abspath $(KEYS)):/input/keys$(suffix $(KEYS)):ro") runner python -m src.cli validate --batch "/input/batch$(suffix $(BATCH))" --schema "$(SCHEMA)" $(if $(KEYS),--keys "/input/keys$(suffix $(KEYS))")
