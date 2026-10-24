@@ -1,0 +1,25 @@
+# Credenciais e configuração local
+.env
+.env.*
+!.env.example
+
+# Ambientes e caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Estado gerado
+models/
+mlruns/
+mlartifacts/
+*.log
+
+# Instruções locais de ferramentas
+AGENTS.md
+CLAUDE.md
