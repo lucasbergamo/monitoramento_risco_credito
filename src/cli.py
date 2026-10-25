@@ -21,6 +21,7 @@ from src.data.split import split
 from src.models.evaluate import evaluate
 from src.models.registry import PromotionRejected, promote
 from src.models.train import train
+from src.monitoring.drift import detect
 from src.simulation.scenarios import evaluate_scenarios, simulate
 from src.utils.config import DataConfig, Settings, load_data_config
 from src.utils.logger import configure_logging, get_logger
@@ -134,7 +135,7 @@ def read_batch(path: Path) -> pd.DataFrame:
 def main(argv: list[str] | None = None) -> int:
     parser = CommandParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for command in ("train", "evaluate", "promote", "simulate", "evaluate-scenarios"):
+    for command in ("train", "evaluate", "promote", "simulate", "evaluate-scenarios", "detect"):
         subcommand = commands.add_parser(command)
         subcommand.add_argument("--data-dir", type=Path)
         subcommand.add_argument("--models-dir", type=Path)
@@ -164,7 +165,21 @@ def main(argv: list[str] | None = None) -> int:
             overrides["dataset_archive"] = args.archive
         settings = Settings(**overrides)
         configure_logging(settings.log_level)
-        if args.command in {"simulate", "evaluate-scenarios"}:
+        if args.command == "detect":
+            result = detect(settings)
+            print(
+                json.dumps(
+                    {
+                        "run_id": result["run_id"],
+                        "gate_passed": result["gate_passed"],
+                        "comparison_count": len(result["results"]),
+                    },
+                    sort_keys=True,
+                )
+            )
+            if not result["gate_passed"]:
+                return 2
+        elif args.command in {"simulate", "evaluate-scenarios"}:
             result = {"simulate": simulate, "evaluate-scenarios": evaluate_scenarios}[args.command](
                 settings
             )
@@ -211,7 +226,9 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as error:
         # Mensagens de bibliotecas podem conter caminhos ou valores individuais.
         event = (
-            "scenario_command_failed"
+            "drift_command_failed"
+            if command == "detect"
+            else "scenario_command_failed"
             if command in {"simulate", "evaluate-scenarios"}
             else "model_command_failed"
             if command in {"train", "evaluate", "promote"}

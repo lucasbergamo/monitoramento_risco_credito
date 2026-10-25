@@ -15,6 +15,7 @@ from src.data.contracts import ContractRejected, validate_batch
 from src.data.prepare import FEATURES, PAY_COLUMNS, TARGET
 from src.models.registry import promote
 from src.models.train import train
+from src.monitoring.drift import detect
 from src.simulation.scenarios import (
     SCENARIOS,
     ScenarioConfig,
@@ -85,6 +86,12 @@ def simulation_root(tmp_path_factory):
             manifest["files"][relative] = file_hash(path)
         manifest["partitions"][name] = {"row_count": count}
         offset += count
+    reference = settings.data_dir / "gold/reference/features.parquet"
+    reference.parent.mkdir(parents=True)
+    pd.read_parquet(settings.data_dir / "gold/train/features.parquet").iloc[:300].to_parquet(
+        reference, index=False
+    )
+    manifest["files"]["gold/reference/features.parquet"] = file_hash(reference)
     write_manifest(settings.data_dir / "gold/dataset_manifest.json", manifest)
     assert train(settings)["gate_passed"]
     promote(settings)
@@ -202,6 +209,30 @@ def test_corruption_and_failure_preserve_current(simulation):
     with pytest.raises(ValueError, match="Integridade"):
         evaluate_scenarios(simulation)
     assert read_manifest(pointer / "manifest.json") == manifest
+
+
+def test_real_detection_campaign_and_integrity(simulation):
+    simulate(simulation)
+    first = detect(simulation)
+    assert first["gate_passed"]
+    assert len(first["results"]) == 13
+    assert first["validation_remainder_rows"] == 400
+    assert all(
+        not result["alerts"]
+        for result in first["results"]
+        if result["comparison"] in {"identical", "stable_vs_concept"}
+    )
+    root = simulation.artifacts_dir / "runs" / first["run_id"]
+    assert read_manifest(root / "summary.json") == first
+    assert read_manifest(root / "alerts.json")["events"]
+    with patch("src.monitoring.drift.detect_drift", side_effect=OSError("failure")):
+        with pytest.raises(OSError):
+            detect(simulation)
+    assert read_manifest(root / "summary.json") == first
+    pointer = simulation.data_dir / "scenarios/current"
+    (pointer / "stable/000/features.parquet").write_bytes(b"corrupt")
+    with pytest.raises(ValueError, match="Integridade"):
+        detect(simulation)
 
 
 def test_cli_and_config(simulation, monkeypatch, capsys):
