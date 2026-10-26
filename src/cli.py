@@ -22,6 +22,8 @@ from src.models.evaluate import evaluate
 from src.models.registry import PromotionRejected, promote
 from src.models.train import train
 from src.monitoring.drift import detect
+from src.monitoring.reports import build_report
+from src.monitoring.tracking import track_operation
 from src.simulation.scenarios import evaluate_scenarios, simulate
 from src.utils.config import DataConfig, Settings, load_data_config
 from src.utils.logger import configure_logging, get_logger
@@ -150,6 +152,9 @@ def main(argv: list[str] | None = None) -> int:
     validation.add_argument(
         "--schema", choices=("features", "source", "labels"), default="features"
     )
+    report_command = commands.add_parser("report")
+    report_command.add_argument("--data-dir", type=Path)
+    report_command.add_argument("--models-dir", type=Path)
     configure_logging()
     logger = get_logger()
     command = None
@@ -166,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
         settings = Settings(**overrides)
         configure_logging(settings.log_level)
         if args.command == "detect":
-            result = detect(settings)
+            result = track_operation(settings, "detect", lambda: detect(settings))
             print(
                 json.dumps(
                     {
@@ -180,15 +185,23 @@ def main(argv: list[str] | None = None) -> int:
             if not result["gate_passed"]:
                 return 2
         elif args.command in {"simulate", "evaluate-scenarios"}:
-            result = {"simulate": simulate, "evaluate-scenarios": evaluate_scenarios}[args.command](
-                settings
+            result = track_operation(
+                settings,
+                args.command,
+                lambda: {"simulate": simulate, "evaluate-scenarios": evaluate_scenarios}[
+                    args.command
+                ](settings),
             )
             print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
             if args.command == "evaluate-scenarios" and not result["gate_passed"]:
                 return 2
         elif args.command in {"train", "evaluate", "promote"}:
-            result = {"train": train, "evaluate": evaluate, "promote": promote}[args.command](
-                settings
+            result = track_operation(
+                settings,
+                args.command,
+                lambda: {"train": train, "evaluate": evaluate, "promote": promote}[args.command](
+                    settings
+                ),
             )
             logger.info("model_command_completed", stage=args.command, status="success")
             print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
@@ -197,24 +210,39 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
         elif args.command == "validate":
             config = load_contract_config(settings.project_root / "configs/contracts.yaml")
-            table = read_batch(args.batch)
-            if args.schema == "source":
-                result = validate_table(table, "source", config)
-                if not result.valid:
-                    raise ContractRejected(result)
-            else:
+
+            def validate_operation():
+                table = read_batch(args.batch)
+                if args.schema == "source":
+                    validation_result = validate_table(table, "source", config)
+                    if not validation_result.valid:
+                        raise ContractRejected(validation_result)
+                    return validation_result.model_dump(mode="json")
                 if args.keys is None:
                     raise ValueError("Chaves do lote exigidas")
                 keys = read_batch(args.keys)
                 validator = validate_batch if args.schema == "features" else validate_labels
-                result = validator(table, keys, config)
-            logger.info("contract_accepted", status="success", **result.model_dump())
+                return validator(table, keys, config).model_dump(mode="json")
+
+            result = track_operation(settings, "validate", validate_operation)
+            logger.info("contract_accepted", status="success", **result)
         elif args.command == "data":
             config = load_data_config(settings.project_root / "configs/project.yaml")
-            result = prepare_dataset(settings, config)
+            result = track_operation(settings, "data", lambda: prepare_dataset(settings, config))
             logger.info("dataset_prepared", row_count=result["row_count"], status="success")
+        elif args.command == "report":
+            result = build_report(settings)
+            print(
+                json.dumps(
+                    {
+                        "tracking_status": result["tracking_status"],
+                        "run_count": result["run_count"],
+                    },
+                    sort_keys=True,
+                )
+            )
         else:
-            result = inspect_dataset(settings)
+            result = track_operation(settings, "inspect-data", lambda: inspect_dataset(settings))
             print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
         return 0
     except PromotionRejected:

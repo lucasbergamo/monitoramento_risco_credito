@@ -83,6 +83,9 @@ def test_known_shift_and_alert_metadata(frames, tmp_path):
     assert rows["limit_bal"]["p_adjusted"] < 0.01
     assert rows["limit_bal"]["numeric_family_size"] == 13
     assert all(r["severity"] == "warning" and r["action"] for r in result["alerts"])
+    assert all(r["condition"] for r in result["alerts"])
+    assert any("PSI" in r["condition"] for r in result["alerts"])
+    assert any("p-Holm" in r["condition"] for r in result["alerts"])
     duplicate = feature_alerts(result["features"] * 2, "synthetic", "000")
     assert duplicate == result["alerts"]
     assert feature_alerts(result["features"], "another", "000")[0]["key"] != duplicate[0]["key"]

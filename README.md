@@ -381,3 +381,45 @@ GNU Make retorna 2 para qualquer receita com falha. Nenhum alerta envia mensagen
 externas ou promove modelo. Sem labels, não há conclusão supervisionada sobre
 concept drift. O equivalente Poetry é `make detect`; a CLI aceita `--data-dir`
 e `--models-dir`, além de `ARTIFACTS_DIR` pelas Settings.
+
+## Tracking e operação
+
+Prepare os diretórios com `make setup` e inicie o servidor persistente:
+
+```bash
+make tracking-up
+make status
+```
+
+A UI real fica em [http://127.0.0.1:5000](http://127.0.0.1:5000). O host usa
+`MLFLOW_TRACKING_URI=http://127.0.0.1:5000`; o runner Compose usa
+`MLFLOW_RUNNER_TRACKING_URI=http://mlflow:5000`, pois `localhost` dentro do
+container aponta para o próprio container. A porta do servidor fica limitada ao
+loopback. O serviço usa SQLite em `state/mlflow/` e artefatos em `artifacts/runs/`.
+`make tracking-down` para o serviço sem remover os volumes, e `make tracking-up`
+recupera as mesmas runs e artefatos.
+
+Os experimentos `credit-baseline` e `credit-monitoring` registram métricas agregadas,
+etapa/janela, tags sanitizadas e amostras de recursos do processo executor. CPU é
+delta acumulado de user+system em segundos. RSS é pico das amostras do processo em
+bytes, com intervalo de 50 ms; processos filhos e consumo do daemon MLflow ficam fora
+do escopo. O valor de pico é amostrado e pode perder picos entre leituras. Não há
+autolog nem envio de linhas, IDs, predições ou modelos individuais.
+
+Cada detecção preserva `summary.json` e `alerts.json` no diretório da execução e
+publica somente esses agregados no MLflow. Eventos de rejeição, feature drift e
+degradação supervisionada registram condição, severidade e ação. A avaliação de
+performance não é inferida quando não há labels. Se o MLflow estiver indisponível,
+os artefatos locais permanecem, o log registra a falha e o comando termina com erro
+operacional, sem marcar tracking como completo.
+
+Gere o sumário operacional e os links relativos:
+
+```bash
+make docker-report
+```
+
+Abra `artifacts/runs/index.html`. A página compara runs, estado do tracking e alertas;
+links apontam para os relatórios locais de drift e avaliação de cenários. Fontes
+ausentes aparecem como indisponíveis, nunca como zero ou sucesso. `make report`
+executa a mesma geração pelo Poetry local. Pare o serviço com `make tracking-down`.
