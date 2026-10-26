@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     dataset_archive: Path | None = None
     seed: int = Field(default=42, ge=0, le=2**32 - 1)
     mlflow_tracking_uri: str = "http://127.0.0.1:5000"
+    mlflow_runner_tracking_uri: str = "http://mlflow:5000"
     log_level: str = "INFO"
 
     @field_validator("log_level")
@@ -39,7 +40,7 @@ class Settings(BaseSettings):
             raise ValueError("LOG_LEVEL deve ser DEBUG, INFO, WARNING, ERROR ou CRITICAL")
         return value
 
-    @field_validator("mlflow_tracking_uri")
+    @field_validator("mlflow_tracking_uri", "mlflow_runner_tracking_uri")
     @classmethod
     def valid_tracking_uri(cls, value: str) -> str:
         uri = urlsplit(value)

@@ -22,15 +22,25 @@ def feature_alerts(rows: list[dict], run_id: str, window: str) -> list[dict]:
         if not row["operational_alert"]:
             continue
         key = f"{run_id}/{window}/feature_drift/{row['feature']}"
+        metric = row["method"]
+        if metric == "psi":
+            condition = f"{row['feature']}: PSI {row['score']:.4f} >= {row['threshold']:.2f}"
+        else:
+            condition = (
+                f"{row['feature']}: KS D {row['ks_d']:.4f} >= "
+                f"{row['minimum_ks_d']:.2f}; p-Holm {row['p_adjusted']:.3g} "
+                f"< {row['threshold']:.2f}"
+            )
         events[key] = {
             "key": key,
             "run_id": run_id,
             "window": window,
             "type": "feature_drift",
             "feature": row["feature"],
+            "condition": condition,
             "severity": "warning",
             "rule": row["operational_rule"],
-            "metric": row["method"],
+            "metric": metric,
             "value": row["score"],
             "threshold": row["threshold"],
             "p_adjusted": row["p_adjusted"],

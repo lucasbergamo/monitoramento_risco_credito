@@ -177,7 +177,13 @@ def detect_drift(
         "alerts": feature_alerts(rows, run_id, window),
     }
     write_manifest(output / "normalized.json", result)
-    get_logger().info("drift_comparison_completed", status="success", row_count=len(current))
+    get_logger().info(
+        "drift_comparison_completed",
+        run_id=run_id,
+        window=window,
+        status="success",
+        row_count=len(current),
+    )
     return result
 
 
@@ -241,6 +247,7 @@ def detect(settings) -> dict:
         "run_id": run_id,
         "dataset_manifest_hash": content_hash(dataset),
         "scenario_version": scenario["version"],
+        "model_version": scenario["model_version"],
         "drift_features": scenario["drift_features"],
         "validation_remainder_rows": len(validation) % size,
         "gate_passed": controls_clean and set(scenario["drift_features"]).issubset(detected),

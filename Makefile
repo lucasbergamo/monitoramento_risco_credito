@@ -3,7 +3,7 @@ export HOST_UID := $(shell id -u)
 export HOST_GID := $(shell id -g)
 COMPOSE := docker compose
 
-.PHONY: help setup lock check-lock build lint test docker-lint docker-test
+.PHONY: help setup lock check-lock build lint test docker-lint docker-test tracking-up tracking-down status report docker-report
 
 help: ## Lista os comandos disponíveis.
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -12,6 +12,22 @@ setup: ## Prepara .env e diretórios graváveis com o usuário do host.
 	@test -f .env || cp .env.example .env
 	mkdir -p docs/evidencias data/bronze data/silver data/gold data/scenarios models artifacts/runs state/mlflow
 	@for dir in data models artifacts state; do test -w "$$dir" || { echo "Diretório sem permissão de escrita: $$dir"; exit 1; }; done
+
+tracking-up: setup ## Sobe MLflow local com banco e artifact store persistentes.
+	$(COMPOSE) up -d --build mlflow
+
+tracking-down: ## Para MLflow sem remover banco ou artefatos.
+	$(COMPOSE) stop mlflow
+
+status: ## Mostra estado do Compose e saúde de MLflow pela URI do host.
+	$(COMPOSE) ps
+	@for attempt in $$(seq 1 15); do curl --fail --silent --show-error "$${MLFLOW_TRACKING_URI:-http://127.0.0.1:5000}/health" && exit 0; sleep 5; done; exit 1
+
+report: ## Gera summary.json e index.html operacionais no host.
+	poetry run python -m src.cli report
+
+docker-report: ## Gera relatórios pelo runner, usando a URI interna mlflow:5000.
+	$(COMPOSE) run --rm runner python -m src.cli report
 
 lock: ## Resolve dependências com Python/Poetry isolados em Docker.
 	docker build --target tooling -t monitoramento-risco-credito:tooling .
