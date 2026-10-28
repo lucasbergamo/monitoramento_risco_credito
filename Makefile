@@ -131,10 +131,22 @@ docker-simulate: ## Gera cenários e manifestos em Docker.
 docker-evaluate-scenarios: ## Avalia cenários e publica agregados em Docker.
 	$(COMPOSE) run --rm runner python -m src.cli evaluate-scenarios
 
-.PHONY: detect docker-detect
+.PHONY: detect docker-detect governance docker-governance retention docker-retention
 
 detect: ## Compara referência, controles e cenários com Evidently real.
 	poetry run python -m src.cli detect
 
 docker-detect: ## Produz snapshots locais e diagnóstico estatístico em Docker.
 	$(COMPOSE) run --rm runner python -m src.cli detect
+
+governance: ## Mede desempenho agregado por grupos no teste congelado.
+	poetry run python -m src.cli governance
+
+docker-governance: ## Mede grupos com dados locais montados no runner.
+	$(COMPOSE) run --rm runner python -m src.cli governance
+
+retention: ## Lista execuções operacionais vencidas; DELETE=1 permite exclusão explícita.
+	poetry run python -m scripts.retention $(if $(filter 1,$(DELETE)),--delete)
+
+docker-retention: ## Lista execuções vencidas no container; DELETE=1 permite exclusão explícita.
+	$(COMPOSE) run --rm runner python -m scripts.retention $(if $(filter 1,$(DELETE)),--delete)
