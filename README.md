@@ -16,9 +16,10 @@ sua avaliação e a promoção local estão implementados.
 Os quatro cenários reproduzíveis e a avaliação pareada estão implementados.
 A detecção estatística por feature, os relatórios Evidently e os alertas de drift
 também estão implementados.
-O pipeline integrado de monitoramento permanece pendente. A preparação foi validada
-em Docker com dados reais. A suíte usa fixtures próprias, incluindo treino durante os testes e
-falhas de promoção, sem depender de modelos ou dados preparados no host.
+O pipeline integrado executa campanhas reproduzíveis com evidências verificáveis.
+A preparação e duas campanhas ponta a ponta foram executadas em Docker com dados
+reais. A suíte usa fixtures próprias, incluindo treino durante os testes e falhas
+de promoção, sem depender de modelos ou dados preparados no host.
 
 Contratos de origem, features e labels e a CLI de validação estão implementados.
 Lotes rejeitados bloqueiam o consumidor e produzem somente diagnóstico agregado.
@@ -32,6 +33,88 @@ Lotes rejeitados bloqueiam o consumidor e produzem somente diagnóstico agregado
 - Documentar privacidade, retenção e limitações do uso dos dados.
 
 O projeto tem finalidade educacional e não é um serviço de decisão de crédito.
+
+## Governança, privacidade e limites do score
+
+O projeto reproduz, para fins acadêmicos, um classificador sobre o conjunto UCI
+Default of Credit Card Clients, publicado por Yeh em 2009. A licença indicada pela
+UCI é CC BY 4.0: a redistribuição exige atribuição, link para a licença e indicação
+de alterações. Essa licença trata dos direitos concedidos sobre o material; por si
+só não comprova consentimento dos titulares, anonimização ou autorização irrestrita
+para qualquer tratamento. A base é histórica, de Taiwan, com valores em NT$.
+
+O estudo não concede crédito nem produz decisões sobre pessoas. A hipótese de uma
+fintech que avalia proteção do crédito é separada deste uso acadêmico. Em uma
+operação real, o art. 7º, X, da LGPD prevê a hipótese de proteção do crédito; sua
+aplicação depende do contexto e dos requisitos legais. O art. 20 disciplina a
+solicitação de revisão de decisões tomadas unicamente com base em tratamento
+automatizado que afetem os interesses do titular. O art. 7º, IV, refere-se a
+estudos por órgão de pesquisa. Este projeto não declara que sua equipe se enquadra
+nessa definição, que existe consentimento ou que qualquer hipótese legal foi
+validada para a atividade. Não se declara conformidade jurídica certificada.
+
+A preparação local mantém origem, `record_id`, rótulo e tabela de auditoria com SEX,
+AGE, EDUCATION e MARRIAGE. O preditor recebe somente 19 variáveis financeiras;
+demografia não é concatenada às features. A tabela de auditoria é associada por ID
+somente depois de carregar as features, labels e previsões do teste. O ID e os
+arquivos individuais ficam em `data/`, ignorados pelo Git. O diagnóstico por grupo
+publica apenas contagens, denominadores, métricas agregadas e hashes em
+`docs/evidencias/governanca.json`. Métricas com n<100 ou denominador relevante
+inferior a 20 são suprimidas, sem completar grupos ausentes.
+
+No teste original, todos os grupos observados excederam os pisos, com 4.500
+registros e limiar 0,5. Os resultados são descritivos:
+
+| Grupo | n | Prevalência | Recall | FPR | Brier |
+|---|---:|---:|---:|---:|---:|
+| AGE 21 a 34 | 2334 | 0,2112 | 0,3732 | 0,0549 | 0,134671 |
+| AGE 35 a 49 | 1749 | 0,2196 | 0,3724 | 0,0498 | 0,134003 |
+| AGE 50+ | 417 | 0,2830 | 0,3136 | 0,0602 | 0,174360 |
+| SEX código 1 | 1800 | 0,2322 | 0,3995 | 0,0622 | 0,141794 |
+| SEX código 2 | 2700 | 0,2137 | 0,3414 | 0,0476 | 0,135619 |
+
+Modelo `3a1a313f639fbbf23388c90a0227bc9d29936aec574d27ca471cf52de7ed293c`,
+SHA-256 do artefato `b2982bacacd984cbc942c600d39f44423e040500fed277a439ad6c97eb4e7838`,
+manifesto de dados `18f2f7e2eed2a21134dc54541e62d14d17d08c34f69245616360ffc58eba0bbf`.
+O SHA-256 da evidência é `a2e87c1b29fff1c8036ec5256d6f1a437fecf3010319f3172eeb7b0879a1b3db`.
+Os denominadores por métrica e os hashes das entradas de auditoria estão no JSON.
+
+O score é uma probabilidade estimada pelo baseline, não uma decisão, limite de
+aprovação ou medida de justiça. A avaliação por SEX e faixas de AGE é descritiva
+do teste retido e tem amostras menores após segmentação. Recall/FPR dependem do
+limiar demonstrativo 0,5; diferenças entre grupos não identificam causa nem provam
+discriminação. Remover atributos explícitos não elimina proxies. A mitigação prevista
+é investigar coleta e representação, ampliar evidência, revisar variáveis e comparar
+alternativas antes de qualquer mudança de limiar ou modelo.
+
+A análise causal permanece limitada ao mecanismo sintético de `concept_drift`: para
+os mesmos IDs, features, modelo e scores, o simulador sorteia U independentemente
+por construção e aplica `Y(r)=Y(0) OR ((Y(0)=0) AND (U<r))`. A última janela
+observada aumentou o Brier em 0,177789, com IC95% pareado [0,157599; 0,199006],
+em 1.000 reamostragens. Isso mede o simulador, não o efeito de inflação, desemprego,
+limite de crédito ou outra intervenção econômica. Importância por permutação mede
+dependência preditiva do modelo e não é evidência causal.
+
+Dados locais e artefatos operacionais permanecem no host. `make docker-retention`
+apenas lista execuções de `artifacts/runs` com mais de 30 dias; a exclusão exige
+`make docker-retention DELETE=1` e alcança somente diretórios diretos dessa área.
+O comando não remove dados, modelos, evidências versionadas nem o banco/artefatos
+do MLflow em `state/mlflow`. Após confirmação do arquivamento, a eliminação dos
+dados de entrega continua manual. O prazo de 30 dias é uma política operacional
+deste projeto, não prazo legal universal. Consulte [governança](docs/governanca.md),
+[métricas por grupo](docs/metricas.md) e [operação](docs/operacao.md).
+
+## Evidências da rubrica
+
+| Critério | Peso | Evidência e estado |
+|---|---:|---|
+| Validação | 25% | [Contratos](docs/adr/0003-contratos-e-bloqueio.md) e [rejeição na campanha](docs/evidencias/campaign.json) |
+| Drift | 25% | [Cenários pareados](docs/evidencias/scenarios.json) e [detecção](docs/evidencias/deteccao.json) |
+| Observabilidade | 20% | [Campanha reproduzível](docs/evidencias/campaign.json) e [relato](docs/reproducibilidade.md) |
+| Governança | 15% | [Diagnóstico agregado por grupos](docs/evidencias/governanca.json) e esta seção |
+| Vídeo | 15% | Pendente de gravação e publicação na etapa de entrega |
+
+Fontes consultadas: [Lei nº 13.709/2018, texto oficial consolidado](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm), [dataset na UCI](https://archive.ics.uci.edu/dataset/350/default%2Bof%2Bcredit%2Bcard%2Bclients) e [licença CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Requisitos de ambiente
 

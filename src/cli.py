@@ -18,6 +18,7 @@ from src.data.contracts import (
 from src.data.ingest import ARCHIVE_NAME, ingest, read_source
 from src.data.prepare import DEMOGRAPHICS, FEATURES, TARGET, prepare
 from src.data.split import split
+from src.governance import governance
 from src.models.evaluate import evaluate
 from src.models.registry import PromotionRejected, promote
 from src.models.train import train
@@ -138,7 +139,15 @@ def read_batch(path: Path) -> pd.DataFrame:
 def main(argv: list[str] | None = None) -> int:
     parser = CommandParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for command in ("train", "evaluate", "promote", "simulate", "evaluate-scenarios", "detect"):
+    for command in (
+        "train",
+        "evaluate",
+        "promote",
+        "simulate",
+        "evaluate-scenarios",
+        "detect",
+        "governance",
+    ):
         subcommand = commands.add_parser(command)
         subcommand.add_argument("--data-dir", type=Path)
         subcommand.add_argument("--models-dir", type=Path)
@@ -190,6 +199,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not result["gate_passed"]:
                 return 2
+        elif args.command == "governance":
+            result = governance(settings)
+            print(
+                json.dumps(
+                    {
+                        "partition": result["partition"],
+                        "row_count": result["row_count"],
+                        "model_version": result["model_version"],
+                        "evidence": "docs/evidencias/governanca.json",
+                    },
+                    sort_keys=True,
+                )
+            )
         elif args.command in {"simulate", "evaluate-scenarios"}:
             result = track_operation(
                 settings,
@@ -284,6 +306,8 @@ def main(argv: list[str] | None = None) -> int:
             if command == "validate"
             else "campaign_command_failed"
             if command in {"demo", "verify-evidence", "report"}
+            else "governance_command_failed"
+            if command == "governance"
             else "data_command_failed"
         )
         logger.error(event, error_type=type(error).__name__, status="failed")

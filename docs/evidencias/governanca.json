@@ -1,0 +1,188 @@
+{
+  "age_bands": [
+    "21-34",
+    "35-49",
+    "50+"
+  ],
+  "audit_table_sha256": "a0293717aa4ebb8e153fa51c48542e436782e163e9d2b353a89ff0cd803303e6",
+  "dataset_manifest_hash": "18f2f7e2eed2a21134dc54541e62d14d17c08c34f69245616360ffc58eba0bbf",
+  "decision_threshold": 0.5,
+  "demographic_fields_used_as_features": [],
+  "demographic_fields_used_for_grouping": [
+    "sex",
+    "age"
+  ],
+  "groups": {
+    "age_band": [
+      {
+        "brier": {
+          "denominator": 2334,
+          "numerator": 314.32166067323317,
+          "status": "available",
+          "value": 0.13467080577259347
+        },
+        "decision_threshold": 0.5,
+        "false_positive_rate": {
+          "denominator": 1841,
+          "numerator": 101,
+          "status": "available",
+          "value": 0.054861488321564365
+        },
+        "group": "21-34",
+        "n": 2334,
+        "negative_n": 1841,
+        "positive_n": 493,
+        "prevalence": {
+          "denominator": 2334,
+          "numerator": 493,
+          "status": "available",
+          "value": 0.21122536418166238
+        },
+        "recall": {
+          "denominator": 493,
+          "numerator": 184,
+          "status": "available",
+          "value": 0.37322515212981744
+        }
+      },
+      {
+        "brier": {
+          "denominator": 1749,
+          "numerator": 234.3712675728446,
+          "status": "available",
+          "value": 0.1340030117626327
+        },
+        "decision_threshold": 0.5,
+        "false_positive_rate": {
+          "denominator": 1365,
+          "numerator": 68,
+          "status": "available",
+          "value": 0.04981684981684982
+        },
+        "group": "35-49",
+        "n": 1749,
+        "negative_n": 1365,
+        "positive_n": 384,
+        "prevalence": {
+          "denominator": 1749,
+          "numerator": 384,
+          "status": "available",
+          "value": 0.2195540308747856
+        },
+        "recall": {
+          "denominator": 384,
+          "numerator": 143,
+          "status": "available",
+          "value": 0.3723958333333333
+        }
+      },
+      {
+        "brier": {
+          "denominator": 417,
+          "numerator": 72.70807352430616,
+          "status": "available",
+          "value": 0.1743598885474968
+        },
+        "decision_threshold": 0.5,
+        "false_positive_rate": {
+          "denominator": 299,
+          "numerator": 18,
+          "status": "available",
+          "value": 0.06020066889632107
+        },
+        "group": "50+",
+        "n": 417,
+        "negative_n": 299,
+        "positive_n": 118,
+        "prevalence": {
+          "denominator": 417,
+          "numerator": 118,
+          "status": "available",
+          "value": 0.2829736211031175
+        },
+        "recall": {
+          "denominator": 118,
+          "numerator": 37,
+          "status": "available",
+          "value": 0.3135593220338983
+        }
+      }
+    ],
+    "sex": [
+      {
+        "brier": {
+          "denominator": 1800,
+          "numerator": 255.22903837771162,
+          "status": "available",
+          "value": 0.14179391020983978
+        },
+        "decision_threshold": 0.5,
+        "false_positive_rate": {
+          "denominator": 1382,
+          "numerator": 86,
+          "status": "available",
+          "value": 0.06222865412445731
+        },
+        "group": "code_1",
+        "n": 1800,
+        "negative_n": 1382,
+        "positive_n": 418,
+        "prevalence": {
+          "denominator": 1800,
+          "numerator": 418,
+          "status": "available",
+          "value": 0.23222222222222222
+        },
+        "recall": {
+          "denominator": 418,
+          "numerator": 167,
+          "status": "available",
+          "value": 0.39952153110047844
+        }
+      },
+      {
+        "brier": {
+          "denominator": 2700,
+          "numerator": 366.1719633926723,
+          "status": "available",
+          "value": 0.13561924570098974
+        },
+        "decision_threshold": 0.5,
+        "false_positive_rate": {
+          "denominator": 2123,
+          "numerator": 101,
+          "status": "available",
+          "value": 0.047574187470560525
+        },
+        "group": "code_2",
+        "n": 2700,
+        "negative_n": 2123,
+        "positive_n": 577,
+        "prevalence": {
+          "denominator": 2700,
+          "numerator": 577,
+          "status": "available",
+          "value": 0.2137037037037037
+        },
+        "recall": {
+          "denominator": 577,
+          "numerator": 197,
+          "status": "available",
+          "value": 0.341421143847487
+        }
+      }
+    ]
+  },
+  "minimum_group_size": 100,
+  "minimum_positive_or_negative_count": 20,
+  "model_sha256": "b2982bacacd984cbc942c600d39f44423e040500fed277a439ad6c97eb4e7838",
+  "model_version": "3a1a313f639fbbf23388c90a0227bc9d29936aec574d27ca471cf52de7ed293c",
+  "partition": "test",
+  "row_count": 4500,
+  "schema_version": 1,
+  "test_file_hashes": {
+    "gold/test/features.parquet": "7ea764b1e813aac622d90928211b395f9057293cd78cf3574d8bb2f85e6cc2f7",
+    "gold/test/keys.parquet": "1d96fa501a0705198be261aadf5079a7808693ba3354b0fdaf0309e7c7f2f869",
+    "gold/test/labels.parquet": "a5548d127b0d24b276c224137fc35953cec42c2be3b5e300aa112b0a130f04e9"
+  }
+}
