@@ -4,6 +4,8 @@
 !poetry.lock
 !src/
 !src/**
+!scripts/
+!scripts/**
 !tests/
 !tests/**
 **/__pycache__/

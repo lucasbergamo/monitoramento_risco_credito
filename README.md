@@ -413,13 +413,52 @@ performance não é inferida quando não há labels. Se o MLflow estiver indispo
 os artefatos locais permanecem, o log registra a falha e o comando termina com erro
 operacional, sem marcar tracking como completo.
 
-Gere o sumário operacional e os links relativos:
+Gere o relatório de uma campanha pelo ID retornado por `demo`:
 
 ```bash
-make docker-report
+make docker-report CAMPAIGN_ID=<campaign_id>
 ```
 
-Abra `artifacts/runs/index.html`. A página compara runs, estado do tracking e alertas;
-links apontam para os relatórios locais de drift e avaliação de cenários. Fontes
-ausentes aparecem como indisponíveis, nunca como zero ou sucesso. `make report`
-executa a mesma geração pelo Poetry local. Pare o serviço com `make tracking-down`.
+Abra `artifacts/campaigns/<campaign_id>/index.html`. A página compara as runs dessa
+campanha, estado do tracking e alertas; links apontam para as evidências vinculadas
+pelos IDs. Fontes ausentes aparecem como indisponíveis, nunca como zero ou sucesso.
+`make report CAMPAIGN_ID=<campaign_id>` executa a mesma geração pelo Poetry local.
+Pare o serviço com `make tracking-down`.
+
+## Campanha integrada e verificação de evidências
+
+Depois de `make docker-data`, `make docker-train`, `make docker-evaluate` e
+`make docker-promote`, inicie o tracking e execute uma campanha completa:
+
+```bash
+make tracking-up
+make status
+make docker-demo
+```
+
+`docker-demo` valida os dados antes da inferência, gera os cenários, associa labels
+somente depois dos scores, executa o detector e grava um manifesto em
+`artifacts/campaigns/<campaign_id>/manifest.json`. A saída JSON retorna o
+`campaign_id`, os IDs das runs e quatro cenários. O cenário `invalid` precisa ser
+rejeitado sem produzir scores; essa rejeição esperada não interrompe os demais.
+Qualquer falha de dados, modelo, detector ou tracking termina com erro operacional
+e deixa a campanha como `failed` ou incompleta, sem reutilizar uma campanha anterior.
+
+Use o ID exato retornado, sem procurar arquivos pela data de modificação:
+
+```bash
+make docker-report CAMPAIGN_ID=<campaign_id>
+make docker-verify-evidence CAMPAIGN_ID=<campaign_id>
+```
+
+O relatório fica em `artifacts/campaigns/<campaign_id>/index.html` e o sumário em
+`summary.json`. A verificação confirma os hashes locais, resultados dos quatro
+cenários e runs MLflow finalizadas com a mesma tag `campaign_id`. Uma nova execução
+cria outro diretório e preserva as campanhas anteriores. Os resultados determinísticos
+são comparáveis pelo hash de resultado; IDs e medições operacionais mudam por execução.
+As limitações e medições reais estão em [reprodutibilidade](docs/reproducibilidade.md).
+
+Para recuperar uma falha operacional, confira `make status`, corrija a origem
+indicada no log agregado e execute `make docker-demo` novamente. A campanha anterior
+permanece para diagnóstico. `make tracking-down` interrompe o serviço sem remover
+banco ou artefatos; não use comandos de remoção de volumes para encerrar a demonstração.

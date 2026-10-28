@@ -310,7 +310,13 @@ def tracked_run(
     return TrackedRun(settings, experiment_name, run_name, tags=tags)
 
 
-def track_operation(settings: Settings, command: str, operation: Callable[[], dict]) -> dict:
+def track_operation(
+    settings: Settings,
+    command: str,
+    operation: Callable[[], dict],
+    *,
+    tags: dict[str, str] | None = None,
+) -> dict:
     baseline = command in {"train", "evaluate", "promote"}
     experiment = "credit-baseline" if baseline else "credit-monitoring"
     run_name = experiment
@@ -320,7 +326,7 @@ def track_operation(settings: Settings, command: str, operation: Callable[[], di
             settings,
             experiment,
             run_name,
-            tags={"component": command},
+            tags={"component": command, **(tags or {})},
         ) as run:
             result = operation()
             result["tracking_run_id"] = run.run_id
@@ -388,7 +394,14 @@ def _valid_metric(name: str, value: float | int) -> bool:
 
 
 def _safe_tag(key: str, value: str) -> bool:
-    allowed = {"mlflow.runName", "component", "model_version", "scenario_version", "status"}
+    allowed = {
+        "mlflow.runName",
+        "component",
+        "model_version",
+        "scenario_version",
+        "campaign_id",
+        "status",
+    }
     return (
         key in allowed
         and len(value) <= 128

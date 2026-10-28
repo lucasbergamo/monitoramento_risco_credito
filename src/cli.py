@@ -24,6 +24,7 @@ from src.models.train import train
 from src.monitoring.drift import detect
 from src.monitoring.reports import build_report
 from src.monitoring.tracking import track_operation
+from src.pipeline import PipelineStageError, run_pipeline, verify_evidence
 from src.simulation.scenarios import evaluate_scenarios, simulate
 from src.utils.config import DataConfig, Settings, load_data_config
 from src.utils.logger import configure_logging, get_logger
@@ -155,6 +156,11 @@ def main(argv: list[str] | None = None) -> int:
     report_command = commands.add_parser("report")
     report_command.add_argument("--data-dir", type=Path)
     report_command.add_argument("--models-dir", type=Path)
+    report_command.add_argument("--campaign-id", required=True)
+    demo_command = commands.add_parser("demo")
+    demo_command.add_argument("--campaign-id")
+    verify_command = commands.add_parser("verify-evidence")
+    verify_command.add_argument("--campaign-id", required=True)
     configure_logging()
     logger = get_logger()
     command = None
@@ -231,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
             result = track_operation(settings, "data", lambda: prepare_dataset(settings, config))
             logger.info("dataset_prepared", row_count=result["row_count"], status="success")
         elif args.command == "report":
-            result = build_report(settings)
+            result = build_report(settings, campaign_id=args.campaign_id)
             print(
                 json.dumps(
                     {
@@ -241,6 +247,12 @@ def main(argv: list[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
+        elif args.command == "demo":
+            result = run_pipeline(settings, campaign_id=args.campaign_id)
+            print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
+        elif args.command == "verify-evidence":
+            result = verify_evidence(settings, args.campaign_id)
+            print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
         else:
             result = track_operation(settings, "inspect-data", lambda: inspect_dataset(settings))
             print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
@@ -251,6 +263,14 @@ def main(argv: list[str] | None = None) -> int:
     except ContractRejected as error:
         logger.warning("contract_rejected", status="rejected", **error.result.model_dump())
         return 2
+    except PipelineStageError as error:
+        logger.error(
+            "campaign_command_failed",
+            stage=error.stage,
+            failure_code=error.failure_code,
+            status="failed",
+        )
+        return 1
     except Exception as error:
         # Mensagens de bibliotecas podem conter caminhos ou valores individuais.
         event = (
@@ -262,6 +282,8 @@ def main(argv: list[str] | None = None) -> int:
             if command in {"train", "evaluate", "promote"}
             else "validation_command_failed"
             if command == "validate"
+            else "campaign_command_failed"
+            if command in {"demo", "verify-evidence", "report"}
             else "data_command_failed"
         )
         logger.error(event, error_type=type(error).__name__, status="failed")

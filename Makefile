@@ -3,7 +3,7 @@ export HOST_UID := $(shell id -u)
 export HOST_GID := $(shell id -g)
 COMPOSE := docker compose
 
-.PHONY: help setup lock check-lock build lint test docker-lint docker-test tracking-up tracking-down status report docker-report
+.PHONY: help setup lock check-lock build lint test docker-lint docker-test tracking-up tracking-down status report docker-report demo docker-demo verify-evidence docker-verify-evidence
 
 help: ## Lista os comandos disponíveis.
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -24,10 +24,26 @@ status: ## Mostra estado do Compose e saúde de MLflow pela URI do host.
 	@for attempt in $$(seq 1 15); do curl --fail --silent --show-error "$${MLFLOW_TRACKING_URI:-http://127.0.0.1:5000}/health" && exit 0; sleep 5; done; exit 1
 
 report: ## Gera summary.json e index.html operacionais no host.
-	poetry run python -m src.cli report
+	@test -n "$(CAMPAIGN_ID)" || { echo "Informe CAMPAIGN_ID=<id retornado por demo>"; exit 2; }
+	poetry run python -m src.cli report $(if $(CAMPAIGN_ID),--campaign-id "$(CAMPAIGN_ID)")
 
 docker-report: ## Gera relatórios pelo runner, usando a URI interna mlflow:5000.
-	$(COMPOSE) run --rm runner python -m src.cli report
+	@test -n "$(CAMPAIGN_ID)" || { echo "Informe CAMPAIGN_ID=<id retornado por demo>"; exit 2; }
+	$(COMPOSE) run --rm runner python -m src.cli report $(if $(CAMPAIGN_ID),--campaign-id "$(CAMPAIGN_ID)")
+
+demo: ## Executa campanha completa e retorna CAMPAIGN_ID ao concluir.
+	poetry run python -m src.cli demo $(if $(CAMPAIGN_ID),--campaign-id "$(CAMPAIGN_ID)")
+
+docker-demo: ## Executa campanha completa no runner Docker.
+	$(COMPOSE) run --rm runner python -m src.cli demo $(if $(CAMPAIGN_ID),--campaign-id "$(CAMPAIGN_ID)")
+
+verify-evidence: ## Verifica a campanha explicitamente informada por CAMPAIGN_ID.
+	@test -n "$(CAMPAIGN_ID)" || { echo "Informe CAMPAIGN_ID=<id retornado por demo>"; exit 2; }
+	poetry run python -m scripts.verify_evidence --campaign-id "$(CAMPAIGN_ID)"
+
+docker-verify-evidence: ## Verifica evidência da campanha pelo runner Docker.
+	@test -n "$(CAMPAIGN_ID)" || { echo "Informe CAMPAIGN_ID=<id retornado por demo>"; exit 2; }
+	$(COMPOSE) run --rm runner python -m scripts.verify_evidence --campaign-id "$(CAMPAIGN_ID)"
 
 lock: ## Resolve dependências com Python/Poetry isolados em Docker.
 	docker build --target tooling -t monitoramento-risco-credito:tooling .

@@ -64,5 +64,14 @@ services:
 
   ci:
     <<: *development
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      PROJECT_ROOT: /app
+      MLFLOW_TRACKING_URI: ${MLFLOW_RUNNER_TRACKING_URI:-http://mlflow:5000}
+      TC4_TRACKING_INTEGRATION_URI: ${MLFLOW_RUNNER_TRACKING_URI:-http://mlflow:5000}
+      MLFLOW_ENABLE_TELEMETRY: "false"
+      DO_NOT_TRACK: "1"
     # Sem bind mounts: testes usam fixtures e estado temporário dentro da imagem.
     command: ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]
