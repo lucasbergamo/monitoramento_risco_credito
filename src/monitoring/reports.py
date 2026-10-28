@@ -8,16 +8,29 @@ import math
 from pathlib import Path
 from typing import Any
 
+from mlflow import MlflowClient
+
 from src.monitoring.tracking import recent_runs
 from src.utils.config import Settings
 from src.utils.manifest import read_manifest, write_manifest
 
 
-def build_report(settings: Settings) -> dict[str, Any]:
+def build_report(settings: Settings, campaign_id: str | None = None) -> dict[str, Any]:
     root = settings.artifacts_dir / "runs"
     root.mkdir(parents=True, exist_ok=True)
-    detection = _latest_json(root, "summary.json", exclude=".")
-    scenario_path = settings.data_dir / "scenarios/evaluation.json"
+    campaign = None
+    campaign_directory = None
+    if campaign_id is not None:
+        from src.pipeline import verify_evidence
+
+        verify_evidence(settings, campaign_id)
+        campaign_directory = settings.artifacts_dir / "campaigns" / campaign_id
+        campaign = read_manifest(campaign_directory / "manifest.json")
+        detection = read_manifest(campaign_directory / "drift_summary.json")
+        scenario_path = campaign_directory / "scenario_evaluation.json"
+    else:
+        detection = _latest_json(root, "summary.json", exclude=".")
+        scenario_path = settings.data_dir / "scenarios/evaluation.json"
     scenario = read_manifest(scenario_path) if scenario_path.is_file() else None
     scenario_matches = bool(
         scenario
@@ -26,11 +39,29 @@ def build_report(settings: Settings) -> dict[str, Any]:
         and scenario.get("model_version") == detection.get("model_version")
     )
     try:
-        runs = recent_runs(settings)
+        if campaign is None:
+            runs = recent_runs(settings)
+        else:
+            client = MlflowClient(tracking_uri=settings.mlflow_tracking_uri)
+            runs = []
+            for run_id in campaign["run_ids"].values():
+                run = client.get_run(run_id)
+                runs.append(
+                    {
+                        "run_id": run.info.run_id,
+                        "run_name": run.data.tags.get("mlflow.runName", "unnamed"),
+                        "experiment": run.info.experiment_id,
+                        "status": run.info.status,
+                        "start_time": run.info.start_time,
+                        "metrics": run.data.metrics,
+                    }
+                )
         tracking_status = "available"
     except Exception:
         runs = []
         tracking_status = "unavailable"
+        if campaign is not None:
+            raise
 
     data_layer = _data_layer(settings)
     model_layer = _model_layer(settings)
@@ -77,6 +108,9 @@ def build_report(settings: Settings) -> dict[str, Any]:
 
     report = {
         "schema_version": 1,
+        "campaign_id": campaign_id,
+        "campaign_status": campaign.get("status") if campaign else None,
+        "campaign_run_ids": campaign.get("run_ids") if campaign else None,
         "tracking_status": tracking_status,
         "tracking_uri": settings.mlflow_tracking_uri,
         "run_count": len(runs),
@@ -95,16 +129,25 @@ def build_report(settings: Settings) -> dict[str, Any]:
         ),
         "alerts": alerts,
         "sources": {
-            "drift_summary": _relative_link(root, detection.get("run_id"), "summary.json")
-            if detection
-            else None,
+            "drift_summary": (
+                "drift_summary.json"
+                if campaign_id and detection
+                else _relative_link(root, detection.get("run_id"), "summary.json")
+                if detection
+                else None
+            ),
             "scenario_evaluation": (
-                "../../data/scenarios/evaluation.json" if scenario_matches else None
+                "scenario_evaluation.json"
+                if campaign_id and scenario_matches
+                else "../../data/scenarios/evaluation.json"
+                if scenario_matches
+                else None
             ),
         },
     }
-    write_manifest(root / "summary.json", _json_safe(report))
-    _write_html(root / "index.html", report)
+    output = campaign_directory or root
+    write_manifest(output / "summary.json", _json_safe(report))
+    _write_html(output / "index.html", report)
     return report
 
 

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "status": "verified",
+  "code_version": "sha256:7e9aea4554d852fee059fdd42f5e7fffff2043860cba8264009441f727dc293f",
+  "dataset_manifest_hash": "18f2f7e2eed2a21134dc54541e62d14d17c08c34f69245616360ffc58eba0bbf",
+  "model_version": "3a1a313f639fbbf23388c90a0227bc9d29936aec574d27ca471cf52de7ed293c",
+  "scenario_version": "06cb9e92167256554fea8d542426df152e99e623f9edcb495d41b53523c0808e",
+  "config_hashes": {
+    "model.yaml": "b4fac8b4322fd042fb1423b276ff1f83d456011b9fe78a333955d5482e4f45e7",
+    "monitoring.yaml": "edddc89ef1f13cb5c2271c8a330624e8b0a037ef366a6e50efa0a858404a48f5",
+    "project.yaml": "d074a16f55424c1fe37937c90461938bafbabf2dd1f778a5459271c6cb2635ed",
+    "scenarios.yaml": "9846881dd64f4e2aabb560ee3b0ec15d3bf9d96953fb5284ace6468b9a5556bd"
+  },
+  "campaigns": [
+    {
+      "campaign_id": "127c4dd67f0340ff9bb091d9113d253c",
+      "run_ids": {
+        "simulate": "36955ea2868d46a79de2a0e59b02d506",
+        "evaluate-scenarios": "37eb125cb19c4b07b341c2baed41557d",
+        "detect": "dfb39e539ef545ab8e743c55276d25f6"
+      },
+      "result_hash": "6f5c2c8793d9740aa88d0cae6f4b91fdfad5d361dbf6bd79f0fa829ef734f216"
+    },
+    {
+      "campaign_id": "703185b921084778ad251b733eb0f4d9",
+      "run_ids": {
+        "simulate": "b354effad90f4d7caf610798ef417890",
+        "evaluate-scenarios": "f487690939504279b60a509699cdcdba",
+        "detect": "e8a66eaa192f42b48bedbcb2db73d7ce"
+      },
+      "result_hash": "6f5c2c8793d9740aa88d0cae6f4b91fdfad5d361dbf6bd79f0fa829ef734f216"
+    }
+  ],
+  "scenario_counts_per_campaign": {
+    "stable": 6,
+    "invalid": 1,
+    "data_drift": 6,
+    "concept_drift": 6
+  },
+  "acceptance": {
+    "scenario_gate_passed": true,
+    "drift_gate_passed": true,
+    "invalid_status": "contract_rejected",
+    "invalid_scores_present": false,
+    "data_drift_labels_status": "labels_unavailable",
+    "drift_comparisons": 23
+  }
+}

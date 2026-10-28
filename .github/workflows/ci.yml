@@ -21,5 +21,8 @@ jobs:
         run: make docker-lint
       - name: Testes e integração das bibliotecas
         run: make docker-test
+      - name: Encerrar serviço temporário sem remover volumes
+        if: always()
+        run: make tracking-down
       - name: Smoke do runtime
         run: docker run --rm monitoramento-risco-credito:runtime
