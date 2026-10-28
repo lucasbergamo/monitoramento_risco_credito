@@ -106,7 +106,32 @@ estabilidade ao longo do tempo. O comparador trivial fornece referência mínima
 Base de 2005, valores em NT$ e população de Taiwan, sem representatividade
 automática do Brasil atual. PAY inclui códigos especiais como ordinais, uma
 simplificação de modelagem. Remover demografia não remove proxies nem comprova
-ausência de discriminação. Diagnósticos de vieses e governança permanecem pendentes.
+ausência de discriminação. O diagnóstico descritivo de grupos no teste está em
+[métricas por grupo](metricas.md); não é certificação de justiça ou governança.
 Não se afirma calibração, justiça, conformidade jurídica ou adequação produtiva.
-Não retreinar durante a demonstração de drift; cenários e detectores ainda não
-integram esta entrega do modelo.
+O pipeline de cenários e detectores usa o bundle congelado e não retreina o modelo
+durante a demonstração de drift.
+
+## Diagnóstico descritivo por grupo
+
+No teste original, com modelo congelado `3a1a313f`, limiar 0,5 e 4.500 registros,
+foram calculados n, prevalência, recall, taxa de falso positivo e Brier por código
+de SEX e faixa de AGE. Os valores agregados e hashes reproduzíveis estão em
+[governanca.json](evidencias/governanca.json). AGE/SEX não entraram no estimador.
+As diferenças observadas são descritivas dessa partição histórica e não identificam
+causas, não medem desempenho futuro e não demonstram discriminação ou equidade.
+
+| Grupo | n | Prevalência | Recall | FPR | Brier |
+|---|---:|---:|---:|---:|---:|
+| AGE 21 a 34 | 2334 | 0,2112 | 0,3732 | 0,0549 | 0,134671 |
+| AGE 35 a 49 | 1749 | 0,2196 | 0,3724 | 0,0498 | 0,134003 |
+| AGE 50+ | 417 | 0,2830 | 0,3136 | 0,0602 | 0,174360 |
+| SEX código 1 | 1800 | 0,2322 | 0,3995 | 0,0622 | 0,141794 |
+| SEX código 2 | 2700 | 0,2137 | 0,3414 | 0,0476 | 0,135619 |
+
+Identidade da evidência: versão do modelo
+`3a1a313f639fbbf23388c90a0227bc9d29936aec574d27ca471cf52de7ed293c`, artefato
+`b2982bacacd984cbc942c600d39f44423e040500fed277a439ad6c97eb4e7838`, manifesto
+do dataset `18f2f7e2eed2a21134dc54541e62d14d17d08c34f69245616360ffc58eba0bbf`.
+SHA-256 de `governanca.json`:
+`a2e87c1b29fff1c8036ec5256d6f1a437fecf3010319f3172eeb7b0879a1b3db`.

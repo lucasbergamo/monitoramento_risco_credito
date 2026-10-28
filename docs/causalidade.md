@@ -132,3 +132,18 @@ IDs, U, scores, dados individuais e labels ficam locais e ignorados pelo Git.
 A exclusão de demografia e o uso de hashes não garantem anonimato ou equidade.
 Detecção estatística de drift e alertas operacionais não integram esta medição
 supervisionada. O critério pareado não equivale ao alerta contra a validação.
+
+## Interpretação final
+
+O resultado numérico quantifica a intervenção construída em `causal.py`: para
+cada janela, X e score permanecem pareados e somente Y é substituído pela regra
+sintética. Na última janela, r=0,35, o aumento médio do Brier foi 0,177789 e o
+intervalo percentil bootstrap pareado de 95% foi [0,157599; 0,199006], com 1.000
+reamostragens. O estimando é condicional aos registros da janela, ao modelo
+congelado e ao mecanismo de U independente por construção. Não representa uma
+amostra de intervenções econômicas nem demonstra que variáveis financeiras causem
+inadimplência no mundo real.
+
+O diagnóstico de SEX/AGE no teste também é descritivo e não causal. A importância
+por permutação em validação mede a dependência do modelo em relação às features;
+não prova efeito causal, adequação de uso ou justificação de política de crédito.

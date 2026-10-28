@@ -124,3 +124,33 @@ Os 136 arquivos locais de dados/modelos anteriores permaneceram byte a byte.
 Validação em Docker: build, lint, formatação e smoke aprovados; 134 testes,
 12 warnings conhecidos de dependências, cobertura total 94%. Fixtures próprias,
 sem dataset, modelo preparado ou tracking ativo do host.
+
+## Desempenho descritivo por grupos no teste
+
+Execução reproduzível do comando de governança em 28/10/2026, usando a partição
+de teste original, o bundle aprovado e a tabela local de auditoria separada. n
+total 4.500; limiar fixo 0,5. SEX aparece como código da origem, sem atribuir
+interpretação adicional. Prevalência usa positivos/n; recall usa verdadeiros
+positivos/positivos; FPR usa falsos positivos/negativos; Brier usa soma de perdas
+quadráticas/n.
+
+| Dimensão | Grupo | n | Positivos / negativos | Prevalência | Recall (TP/positivos) | FPR (FP/negativos) | Brier (soma/n) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| AGE | 21 a 34 | 2334 | 493 / 1841 | 0,2112 | 0,3732 (184/493) | 0,0549 (101/1841) | 0,134671 (314,321661/2334) |
+| AGE | 35 a 49 | 1749 | 384 / 1365 | 0,2196 | 0,3724 (143/384) | 0,0498 (68/1365) | 0,134003 (234,371268/1749) |
+| AGE | 50+ | 417 | 118 / 299 | 0,2830 | 0,3136 (37/118) | 0,0602 (18/299) | 0,174360 (72,708074/417) |
+| SEX | código 1 | 1800 | 418 / 1382 | 0,2322 | 0,3995 (167/418) | 0,0622 (86/1382) | 0,141794 (255,229038/1800) |
+| SEX | código 2 | 2700 | 577 / 2123 | 0,2137 | 0,3414 (197/577) | 0,0476 (101/2123) | 0,135619 (366,171963/2700) |
+
+As métricas não foram suprimidas porque todos os grupos têm n>=100 e os
+denominadores de positivos e negativos são >=20. Não havia idades fora das faixas
+definidas. Se um grupo futuro não alcançar n=100, suas métricas serão suprimidas;
+recall também exige 20 positivos e FPR exige 20 negativos. Ausência de grupos não
+é preenchida com dados fictícios. A evidência registra status, denominadores,
+versão/hash do modelo e hashes de entrada em
+[governanca.json](evidencias/governanca.json).
+
+Esta comparação é descritiva de uma única partição histórica. Não inclui teste de
+significância, intervalos por grupo, avaliação temporal ou externa e não sustenta
+uma afirmação de justiça, causalidade ou ausência de discriminação. As diferenças
+devem motivar análise de dados e proxies, não mudança automática de limiar.
