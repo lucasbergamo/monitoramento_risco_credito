@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "campaign_id": "final20261029",
+  "code_version": "sha256:6e147d200797b648c2c4d4f3120b2fc63ca3a691671defda420805b02dd75797",
+  "model_version": "3a1a313f639fbbf23388c90a0227bc9d29936aec574d27ca471cf52de7ed293c",
+  "result_hash": "6f5c2c8793d9740aa88d0cae6f4b91fdfad5d361dbf6bd79f0fa829ef734f216",
+  "files": {
+    "baseline.json": "0daf40bccaa06dc6c357f5f61a907796b7cc10f6fc2aa3a5ec0bc78cc41bc38e",
+    "campaign.json": "b6701ca752713a689293a9bfcad353319ea824c90247a90a37c6e6c593d28011",
+    "dataset_manifest.json": "68b327e1e64e030f79739913039984d9397b6290544d97f0a783d959a4a8cd3e",
+    "deteccao.json": "f2dded052a7940082e4106938f0c4bb877b579a9bf893cd9570a6a1d234731f4",
+    "governanca.json": "a2e87c1b29fff1c8036ec5256d6f1a437fecf3010319f3172eeb7b0879a1b3db",
+    "mlflow-observabilidade.png": "13b1345f2426d2fcdfe04837171d3aabe29f3a6ec24a410f08c57006862df279",
+    "relatorio-observabilidade.png": "5a729190e88d7f5c3b981f6a1d84440ae618ed72730ee83f30681bc6c9849b75",
+    "scenarios.json": "a78cdc9af147b0d3ae6a01994822ce429aaccf68163702561ccbd95cf8b2a987"
+  }
+}

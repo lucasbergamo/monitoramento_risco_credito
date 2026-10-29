@@ -1,4 +1,27 @@
-# Reprodutibilidade da campanha integrada
+# Reprodutibilidade da campanha final
+
+Campanha selecionada: `final20261029`, executada em Docker em 29/10/2026.
+Identificadores e fingerprint do código estão em
+[evidências](evidencias/campaign.json); hashes dos arquivos selecionados em
+[manifesto de publicação](evidencias/publication_manifest.json).
+O percurso completo está no README. A seleção mantém dados, modelo e configurações
+identificados; recursos e IDs de execução variam entre campanhas.
+
+A campanha gera seis janelas stable, seis data_drift, seis concept_drift e uma
+entrada inválida. A rejeição ocorre antes de inferência; não há scores inválidos.
+Data_drift não recebe performance com rótulos originais. A detecção realiza
+23 comparações e a verificação confere hashes, versões e associação ao MLflow.
+Os HTMLs e as imagens são da mesma campanha, sem combinar runs por timestamps.
+
+Verificações finais: build, lint e smoke aprovados; 155 testes aprovados em
+255,13 s, cobertura 90% e 12 warnings conhecidos. Checagem de publicação aprovada
+no conteúdo atual, index e histórico; oito hashes da seleção conferidos.
+
+As duas campanhas históricas abaixo permanecem como evidência complementar.
+A seleção final não afirma uma nova validação manual em outro computador.
+Vídeo, ensaio humano e execução independente permanecem pendentes.
+
+# Campanhas históricas de integração
 
 ## Ambiente e identificadores
 

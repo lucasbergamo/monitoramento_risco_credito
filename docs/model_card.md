@@ -132,6 +132,6 @@ causas, não medem desempenho futuro e não demonstram discriminação ou equida
 Identidade da evidência: versão do modelo
 `3a1a313f639fbbf23388c90a0227bc9d29936aec574d27ca471cf52de7ed293c`, artefato
 `b2982bacacd984cbc942c600d39f44423e040500fed277a439ad6c97eb4e7838`, manifesto
-do dataset `18f2f7e2eed2a21134dc54541e62d14d17d08c34f69245616360ffc58eba0bbf`.
+do dataset `18f2f7e2eed2a21134dc54541e62d14d17c08c34f69245616360ffc58eba0bbf`.
 SHA-256 de `governanca.json`:
 `a2e87c1b29fff1c8036ec5256d6f1a437fecf3010319f3172eeb7b0879a1b3db`.

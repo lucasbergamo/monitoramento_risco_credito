@@ -16,7 +16,7 @@ de qualidade e testes. O build exige o lock e nunca o regenera implicitamente.
 
 O setup cria diretórios com o usuário do host. Containers usam o mesmo UID/GID e
 não exigem sudo ou permissões abertas nos volumes. O serviço ci não monta estado
-do host. Nenhuma porta é publicada nesta etapa.
+do host. MLflow publica a porta 5000 somente em loopback, com SQLite e artefatos persistentes locais.
 
 ## Consequências
 
@@ -28,5 +28,5 @@ e a instalação do próprio Poetry tem transitivas fora do lock da aplicação.
 
 Python/Poetry locais são opcionais e precisam respeitar as versões do projeto.
 A instalação isolada do Poetry no Docker evita dependências globais no host.
-O pipeline de negócio, os dados reais e o serviço de observabilidade serão
-implementados nas etapas correspondentes.
+O pipeline batch integra dados, modelo congelado, cenários e tracking real.
+Os testes em container não montam dados ou modelos locais.

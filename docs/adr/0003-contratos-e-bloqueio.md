@@ -6,7 +6,7 @@ Estado: implementado em 24/10/2026.
 
 Entradas financeiras inválidas precisam ser rejeitadas antes de qualquer consumidor.
 Pandera valida com `lazy=True`, schema estrito, sem coerção ou descarte de linhas.
-Uma rejeição bloqueia o lote inteiro. Não há modelo ou inferência nesta entrega.
+Uma rejeição bloqueia o lote inteiro. A inferência chama o contrato antes de carregar o modelo.
 
 `validate_table(table, scope)` oferece os schemas isolados: origem numérica
 normalizada antes de `group_id`, features e labels. A conversão do XLS continua
@@ -45,7 +45,7 @@ Lote vazio também é rejeitado, com regra `nonempty`.
 `validate_batch` e `validate_labels` retornam resultado válido ou lançam
 `ContractRejected` com diagnóstico seguro. O chamador deve completar a validação
 antes de invocar qualquer consumidor. Um espião nos testes comprova o bloqueio.
-Não existe callback de inferência ou consumidor fictício no produto.
+A integração com o preditor mantém essa fronteira antes de produzir scores.
 
 A CLI retorna 0 no sucesso, 2 na rejeição e 1 na falha operacional, incluindo arquivo
 ausente, formato não suportado, argumento ou configuração inválidos. Erro inesperado

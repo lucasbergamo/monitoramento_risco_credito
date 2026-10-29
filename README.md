@@ -7,22 +7,76 @@ Projeto acadêmico da Fase 4 de Machine Learning Engineering da FIAP.
 
 ## Estado
 
-Fundação implementada e verificada em Docker com Python 3.12.15. O lockfile foi
-gerado com Poetry 2.5.1. Os 31 testes passaram, incluindo integração real entre
-Pandera, scikit-learn, Evidently e MLflow. Lint, build e smoke do runtime passaram.
-A aquisição e preparação de dados estão implementadas, com partições por grupos,
-referência de treino e janelas de produção simulada. O classificador de crédito,
-sua avaliação e a promoção local estão implementados.
-Os quatro cenários reproduzíveis e a avaliação pareada estão implementados.
-A detecção estatística por feature, os relatórios Evidently e os alertas de drift
-também estão implementados.
-O pipeline integrado executa campanhas reproduzíveis com evidências verificáveis.
-A preparação e duas campanhas ponta a ponta foram executadas em Docker com dados
-reais. A suíte usa fixtures próprias, incluindo treino durante os testes e falhas
-de promoção, sem depender de modelos ou dados preparados no host.
+Pipeline batch implementado com Pandera, HistGradientBoosting, Evidently e MLflow.
+O percurso Docker prepara dados, congela o baseline, executa quatro cenários e
+verifica relatórios por campanha explícita. Resultados agregados e proveniência
+estão em [evidências](docs/evidencias/README.md). Vídeo e validação manual em outro
+computador permanecem pendentes; não há submissão declarada.
 
-Contratos de origem, features e labels e a CLI de validação estão implementados.
-Lotes rejeitados bloqueiam o consumidor e produzem somente diagnóstico agregado.
+```mermaid
+flowchart LR
+    U[UCI: origem verificada] --> D[Partições por grupos]
+    D --> T[Treino e validação]
+    T --> M[Modelo congelado]
+    D --> P[Produção reservada]
+    P --> C[Quatro cenários]
+    M --> V[Contrato antes da inferência]
+    C --> V
+    V --> E[Evidently e avaliação com labels separados]
+    E --> L[MLflow: logs, recursos e alertas]
+    L --> R[Relatório por campanha e verificação de hashes]
+```
+
+## Percurso completo de avaliação
+
+Requisitos: Git, GNU Make, Docker com Compose, acesso ao daemon, internet para
+imagens/dependências/UCI, filesystem POSIX gravável e porta local 5000 disponível.
+Python e Poetry no host são opcionais. Execute na raiz do clone em Linux/WSL2.
+O ambiente medido está em [ambiente](docs/ambiente.md); recursos variam por host.
+
+```bash
+make setup
+make build
+make docker-lint
+make docker-test
+make docker-data
+make docker-inspect-data
+make docker-train
+make docker-evaluate
+make docker-promote
+make tracking-up
+make status
+make docker-demo
+```
+
+Copie o `campaign_id` da saída final e substitua `<campaign_id>`:
+
+```bash
+make docker-report CAMPAIGN_ID=<campaign_id>
+make docker-verify-evidence CAMPAIGN_ID=<campaign_id>
+make docker-governance
+```
+
+Esperado: baseline aprovado, 19 lotes de cenários, rejeição integral do inválido,
+23 comparações e gates aprovados. `verify-evidence` deve informar `verified`.
+Abra `artifacts/campaigns/<campaign_id>/index.html` e a UI
+[MLflow local](http://127.0.0.1:5000), confira os IDs da campanha e encerre com
+`make tracking-down`. Os detalhes abaixo explicam cada comando e as falhas esperadas.
+Snapshots Evidently permanecem locais; apenas agregados revisados são versionados.
+Para conferir o conteúdo publicável em checkout com Git e Python 3:
+`make check-publication`. A inspeção de imagens e HTML exige revisão visual adicional.
+
+## Rastreabilidade dos critérios
+
+| Critério | Peso | Comando e evidência |
+|---|---:|---|
+| Validação de dados | 25% | `make docker-demo`; rejeição sem scores em `scenarios.json`, contratos em `src/data/contracts.py` |
+| Detecção de drift | 25% | `make docker-demo`; `deteccao.json`, `scenarios.json`, HTML Evidently local e `docs/causalidade.md` |
+| Observabilidade e logs | 20% | `make docker-report CAMPAIGN_ID=...`; `campaign.json`, imagens agregadas, MLflow e `docs/operacao.md` |
+| Governança | 15% | `make docker-governance`; `governanca.json`, análise abaixo e `docs/governanca.md` |
+| Vídeo STAR | 15% | Pendente de gravação, duração até cinco minutos e acesso externo verificado |
+
+As evidências não substituem o vídeo nem a execução manual independente.
 
 ## Objetivos
 
