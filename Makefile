@@ -150,3 +150,9 @@ retention: ## Lista execuções operacionais vencidas; DELETE=1 permite exclusã
 
 docker-retention: ## Lista execuções vencidas no container; DELETE=1 permite exclusão explícita.
 	$(COMPOSE) run --rm runner python -m scripts.retention $(if $(filter 1,$(DELETE)),--delete)
+
+.PHONY: check-publication
+check-publication: ## Inspeciona working tree, index e blobs históricos publicáveis.
+	python3 scripts/check_publication.py
+	python3 scripts/check_publication.py --cached
+	python3 scripts/check_publication.py --history
