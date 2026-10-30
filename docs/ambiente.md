@@ -26,8 +26,8 @@ pytest 9.1.1, pytest-cov 7.1.0 e Ruff 0.17.2. Não houve mudança dos pins princ
 6. Recupera run com novo cliente e compara bytes dos dois artefatos baixados.
 
 Não há mocks dessas bibliotecas, download de dataset ou autolog de dados individuais.
-O tracking é embutido no processo de teste; acesso HTTP, UI e persistência do serviço
-Compose serão exercitados na implementação de observabilidade.
+O tracking embutido e o teste HTTP usam runs reais. UI e persistência do serviço
+Compose também integram o percurso executável descrito no README.
 
 As chamadas seguem [Report](https://docs.evidentlyai.com/docs/library/report),
 [exportação de resultados](https://docs.evidentlyai.com/docs/library/output_formats)
