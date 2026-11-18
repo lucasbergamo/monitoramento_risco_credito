@@ -170,6 +170,7 @@ make tracking-up
 # Confirma o estado após a espera automática de tracking-up.
 make status
 make docker-lint
+# Opcional: executa a suíte de testes (cerca de 5 minutos; varia com o hardware).
 make docker-test
 docker run --rm monitoramento-risco-credito:runtime
 ```
@@ -185,9 +186,11 @@ Resultados esperados:
   iniciar ou reiniciar containers. Se não estiver pronto, retorna erro. Examine
   `docker compose logs --tail=80 mlflow` para conferir as últimas mensagens do serviço.
 - `make docker-lint`: verifica o código e a formatação; resultado esperado sem erros.
-- `make docker-test`: executa os testes com fixtures e cobertura, incluindo
-  HTML/JSON Evidently e integração HTTP com o tracking. Deve terminar sem falhas.
-  O tempo varia com o hardware, e os pontos indicam testes concluídos.
+- `make docker-test` (opcional): executa os testes com fixtures e cobertura,
+  incluindo HTML/JSON Evidently e integração HTTP com o tracking. Não é necessário
+  para executar a aplicação. A duração estimada é de cerca de 5 minutos e pode ser
+  maior em computadores com menos recursos. Deve terminar sem falhas; os pontos
+  indicam testes concluídos.
 - `docker run --rm monitoramento-risco-credito:runtime`: executa o smoke da imagem
   de produção e remove esse container ao terminar. Deve emitir o evento
   `foundation_ready` com seed 42.
