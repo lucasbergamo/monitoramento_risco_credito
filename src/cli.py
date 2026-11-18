@@ -22,7 +22,6 @@ from src.governance import governance
 from src.models.evaluate import evaluate
 from src.models.registry import PromotionRejected, promote
 from src.models.train import train
-from src.monitoring.drift import detect
 from src.monitoring.reports import build_report
 from src.monitoring.tracking import track_operation
 from src.pipeline import PipelineStageError, run_pipeline, verify_evidence
@@ -31,6 +30,12 @@ from src.utils.config import DataConfig, Settings, load_data_config
 from src.utils.logger import configure_logging, get_logger
 from src.utils.manifest import content_hash, file_hash, read_manifest, write_manifest
 from src.utils.reproducibility import set_seed
+
+
+def detect(settings):
+    from src.monitoring.drift import detect as detect_operation
+
+    return detect_operation(settings)
 
 
 def prepare_dataset(settings: Settings, config: DataConfig) -> dict:
@@ -46,9 +51,14 @@ def prepare_dataset(settings: Settings, config: DataConfig) -> dict:
         if previous["source_sha256"] != config.source_sha256:
             raise ValueError("Origem diverge do manifesto congelado")
     set_seed(config.split_seed)
+    logger = get_logger()
+    logger.info("data_stage_started", stage="acquisition", status="running")
     xls = ingest(config, data_dir / "bronze", settings.dataset_archive)
+    logger.info("data_stage_started", stage="normalization", status="running")
     data, audit = prepare(read_source(xls))
+    logger.info("data_stage_started", stage="split", status="running")
     partitions = split(data, config)
+    logger.info("data_stage_started", stage="persist", status="running")
     with TemporaryDirectory(prefix="preparation-", dir=data_dir) as temporary:
         staging = Path(temporary)
         (staging / "silver").mkdir()
@@ -114,12 +124,81 @@ def prepare_dataset(settings: Settings, config: DataConfig) -> dict:
 
 def inspect_dataset(settings: Settings) -> dict:
     """Verifica integridade de todos os arquivos locais e retorna apenas agregados."""
+    get_logger().info("data_stage_started", stage="integrity", status="running")
     manifest = read_manifest(settings.data_dir / "gold/dataset_manifest.json")
     for relative, expected in manifest["files"].items():
         path = (settings.data_dir / relative).resolve()
         if not path.is_relative_to(settings.data_dir) or file_hash(path) != expected:
             raise ValueError("Integridade dos dados locais inválida")
     return manifest
+
+
+def emit_output(command: str, result: dict, settings: Settings, *, json_output: bool) -> None:
+    """O resultado completo permanece disponível para consumidores explícitos de JSON."""
+    if json_output:
+        print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
+        return
+    gate = result.get("gate_passed")
+    state = "gate reprovado" if gate is False else result.get("status", "concluído")
+    print(f"{command}: {state}.")
+    for key in ("campaign_id", "row_count", "model_version", "version", "tracking_run_id"):
+        if key in result:
+            print(f"{key}: {result[key]}")
+    if command in {"data", "inspect-data"}:
+        for name, partition in result.get("partitions", {}).items():
+            print(f"  {name}: {partition['row_count']} registros")
+        reference = result.get("reference", {})
+        windows = result.get("production_windows", {})
+        print(
+            f"Referência: {reference.get('row_count', '?')} registros; "
+            f"janelas completas: {windows.get('complete_windows', '?')}."
+        )
+    validation = result.get("validation", {}).get("model", {})
+    if validation:
+        print(f"Validação: AUC {validation.get('roc_auc')}; Brier {validation.get('brier')}.")
+    if command == "evaluate":
+        metrics = result.get("metrics", {})
+        for name, label in (("model", "Teste"), ("dummy", "Baseline no teste")):
+            values = metrics.get(name, {})
+            summary = "; ".join(
+                f"{title} {values[key]:.4f}"
+                for key, title in (("roc_auc", "AUC"), ("brier", "Brier"), ("recall", "Recall"))
+                if key in values
+            )
+            if summary:
+                print(f"{label}: {summary}.")
+    if gate is not None:
+        print(f"Gate: {'aprovado' if gate else 'reprovado'}.")
+    if command == "detect":
+        print(f"Comparações: {len(result.get('results', []))}; gate: {gate}.")
+    evidence = {
+        "data": settings.data_dir / "gold/dataset_manifest.json",
+        "inspect-data": settings.data_dir / "gold/dataset_manifest.json",
+        "train": settings.models_dir / "staging/manifest.json",
+        "promote": settings.models_dir / "current/manifest.json",
+        "evaluate": settings.models_dir
+        / "evaluations"
+        / f"{result.get('model_version', 'unknown')}.json",
+        "simulate": settings.data_dir / "scenarios/current/manifest.json",
+        "evaluate-scenarios": settings.data_dir / "scenarios/evaluation.json",
+        "governance": settings.project_root / "docs/evidencias/governanca.json",
+    }.get(command)
+    if command in {"demo", "report", "verify-evidence"}:
+        directory = settings.artifacts_dir / "campaigns" / result["campaign_id"]
+        evidence = directory / ("index.html" if command == "report" else "manifest.json")
+    elif command == "detect":
+        evidence = settings.artifacts_dir / "runs" / result["run_id"] / "summary.json"
+    if evidence is not None:
+        displayed = (
+            evidence.relative_to(settings.project_root)
+            if evidence.is_relative_to(settings.project_root)
+            else evidence
+        )
+        print(f"Artefato: {displayed}")
+    if command == "report":
+        print(f"Tracking: {result['tracking_status']}; runs: {result['run_count']}.")
+    if result.get("tracking_run_id") or command == "report":
+        print(f"UI MLflow: {settings.mlflow_ui_uri}")
 
 
 class CommandParser(argparse.ArgumentParser):
@@ -170,6 +249,10 @@ def main(argv: list[str] | None = None) -> int:
     demo_command.add_argument("--campaign-id")
     verify_command = commands.add_parser("verify-evidence")
     verify_command.add_argument("--campaign-id", required=True)
+    for subcommand in commands.choices.values():
+        subcommand.add_argument(
+            "--json", action="store_true", help="Emite o resultado completo em JSON"
+        )
     configure_logging()
     logger = get_logger()
     command = None
@@ -184,34 +267,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "data" and args.archive is not None:
             overrides["dataset_archive"] = args.archive
         settings = Settings(**overrides)
-        configure_logging(settings.log_level)
+        configure_logging(settings.log_level, json_output=args.json)
+        logger.info("command_started", stage=args.command, status="running")
         if args.command == "detect":
             result = track_operation(settings, "detect", lambda: detect(settings))
-            print(
-                json.dumps(
-                    {
-                        "run_id": result["run_id"],
-                        "gate_passed": result["gate_passed"],
-                        "comparison_count": len(result["results"]),
-                    },
-                    sort_keys=True,
-                )
-            )
+            emit_output(args.command, result, settings, json_output=args.json)
             if not result["gate_passed"]:
                 return 2
         elif args.command == "governance":
             result = governance(settings)
-            print(
-                json.dumps(
-                    {
-                        "partition": result["partition"],
-                        "row_count": result["row_count"],
-                        "model_version": result["model_version"],
-                        "evidence": "docs/evidencias/governanca.json",
-                    },
-                    sort_keys=True,
-                )
-            )
+            emit_output(args.command, result, settings, json_output=args.json)
         elif args.command in {"simulate", "evaluate-scenarios"}:
             result = track_operation(
                 settings,
@@ -220,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.command
                 ](settings),
             )
-            print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
+            emit_output(args.command, result, settings, json_output=args.json)
             if args.command == "evaluate-scenarios" and not result["gate_passed"]:
                 return 2
         elif args.command in {"train", "evaluate", "promote"}:
@@ -232,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             )
             logger.info("model_command_completed", stage=args.command, status="success")
-            print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
+            emit_output(args.command, result, settings, json_output=args.json)
             if args.command == "train" and not result["gate_passed"]:
                 logger.warning("model_gate_rejected", status="rejected")
                 return 2
@@ -254,30 +319,25 @@ def main(argv: list[str] | None = None) -> int:
 
             result = track_operation(settings, "validate", validate_operation)
             logger.info("contract_accepted", status="success", **result)
+            if args.json:
+                emit_output(args.command, result, settings, json_output=True)
         elif args.command == "data":
             config = load_data_config(settings.project_root / "configs/project.yaml")
             result = track_operation(settings, "data", lambda: prepare_dataset(settings, config))
             logger.info("dataset_prepared", row_count=result["row_count"], status="success")
+            emit_output(args.command, result, settings, json_output=args.json)
         elif args.command == "report":
             result = build_report(settings, campaign_id=args.campaign_id)
-            print(
-                json.dumps(
-                    {
-                        "tracking_status": result["tracking_status"],
-                        "run_count": result["run_count"],
-                    },
-                    sort_keys=True,
-                )
-            )
+            emit_output(args.command, result, settings, json_output=args.json)
         elif args.command == "demo":
             result = run_pipeline(settings, campaign_id=args.campaign_id)
-            print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
+            emit_output(args.command, result, settings, json_output=args.json)
         elif args.command == "verify-evidence":
             result = verify_evidence(settings, args.campaign_id)
-            print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
+            emit_output(args.command, result, settings, json_output=args.json)
         else:
             result = track_operation(settings, "inspect-data", lambda: inspect_dataset(settings))
-            print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False))
+            emit_output(args.command, result, settings, json_output=args.json)
         return 0
     except PromotionRejected:
         logger.warning("model_gate_rejected", status="rejected")

@@ -6,12 +6,13 @@ import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from pathlib import Path
+from time import time
 from typing import Any
 from uuid import uuid4
 
-import mlflow
 from mlflow import MlflowClient
-from mlflow.entities import ViewType
+from mlflow.entities import Metric, ViewType
+from mlflow.environment_variables import MLFLOW_SUPPRESS_PRINTING_URL_TO_STDOUT
 
 from src.monitoring.resources import ProcessResources
 from src.utils.config import Settings
@@ -31,6 +32,7 @@ class TrackedRun(AbstractContextManager):
         *,
         tags: dict[str, str] | None = None,
     ) -> None:
+        MLFLOW_SUPPRESS_PRINTING_URL_TO_STDOUT.set(True)
         self.settings = settings
         self.experiment_name = experiment_name
         self.run_name = run_name
@@ -38,6 +40,7 @@ class TrackedRun(AbstractContextManager):
         self.resources = ProcessResources()
         self.run_id: str | None = None
         self._run = None
+        self.client = None
         self._failure: Exception | None = None
         self._pending_metrics: list[tuple[dict[str, float], int]] = []
         self._pending_artifacts: list[tuple[str, dict[str, Any]]] = []
@@ -45,19 +48,7 @@ class TrackedRun(AbstractContextManager):
 
     def __enter__(self) -> TrackedRun:
         try:
-            mlflow.set_tracking_uri(self.settings.mlflow_tracking_uri)
-            client = MlflowClient(tracking_uri=self.settings.mlflow_tracking_uri)
-            experiment = client.get_experiment_by_name(self.experiment_name)
-            experiment_id = (
-                experiment.experiment_id
-                if experiment is not None
-                else client.create_experiment(self.experiment_name)
-            )
-            clean_tags = {"mlflow.runName": self.run_name, **self.tags}
-            if any(not _safe_tag(key, value) for key, value in clean_tags.items()):
-                raise ValueError("Tag de tracking contém campo não permitido")
-            self._run = mlflow.start_run(experiment_id=experiment_id, tags=clean_tags)
-            self.run_id = self._run.info.run_id
+            self._start_remote_run()
         except Exception as error:
             self._startup_error = error
             get_logger().error(
@@ -102,11 +93,12 @@ class TrackedRun(AbstractContextManager):
                     action="Corrigir o lote e executar a validação novamente",
                     status="rejected",
                 )
+            get_logger().info("tracking_started", stage=self.experiment_name, status="running")
             for metrics, step in self._pending_metrics:
-                mlflow.log_metrics(metrics, step=step)
+                self._log_metrics(metrics, step=step)
             for name, payload in self._pending_artifacts:
                 self._upload_json(name, payload)
-            mlflow.log_metrics(
+            self._log_metrics(
                 {
                     "resources.duration_seconds": float(resource_metrics["duration_seconds"]),
                     "resources.cpu_seconds": float(resource_metrics["cpu_seconds"]),
@@ -115,8 +107,8 @@ class TrackedRun(AbstractContextManager):
                 step=0,
             )
             if exc is not None:
-                mlflow.set_tag("operation.error_type", type(exc).__name__)
-            mlflow.end_run(status="FAILED" if exc else "FINISHED")
+                self.client.set_tag(self.run_id, "operation.error_type", type(exc).__name__)
+            self.client.set_terminated(self.run_id, status="FAILED" if exc else "FINISHED")
             get_logger().info(
                 "tracking_published",
                 run_id=self.run_id,
@@ -142,7 +134,14 @@ class TrackedRun(AbstractContextManager):
         if self._run is None:
             self._pending_metrics.append((safe, step))
         else:
-            mlflow.log_metrics(safe, step=step)
+            self._log_metrics(safe, step=step)
+
+    def _log_metrics(self, metrics: dict[str, float], *, step: int) -> None:
+        timestamp = int(time() * 1000)
+        self.client.log_batch(
+            self.run_id,
+            metrics=[Metric(key, float(value), timestamp, step) for key, value in metrics.items()],
+        )
 
     def log_json(self, name: str, payload: dict[str, Any]) -> None:
         if Path(name).name != name or not name.endswith(".json"):
@@ -160,7 +159,7 @@ class TrackedRun(AbstractContextManager):
                 json.dumps(payload, sort_keys=True, ensure_ascii=False, allow_nan=False),
                 encoding="utf-8",
             )
-            mlflow.log_artifact(str(path), artifact_path="reports")
+            self.client.log_artifact(self.run_id, str(path), artifact_path="reports")
         finally:
             path.unlink(missing_ok=True)
             directory = path.parent
@@ -171,8 +170,11 @@ class TrackedRun(AbstractContextManager):
                 parent.rmdir()
 
     def _start_remote_run(self) -> None:
-        mlflow.set_tracking_uri(self.settings.mlflow_tracking_uri)
-        client = MlflowClient(tracking_uri=self.settings.mlflow_tracking_uri)
+        # A API do cliente recebe tags explícitas e não tenta descobrir um Git ausente.
+        # O manifesto da campanha mantém fingerprint de fontes e hashes de artefatos.
+        if self.client is None:
+            self.client = MlflowClient(tracking_uri=self.settings.mlflow_tracking_uri)
+        client = self.client
         experiment = client.get_experiment_by_name(self.experiment_name)
         experiment_id = (
             experiment.experiment_id
@@ -182,7 +184,7 @@ class TrackedRun(AbstractContextManager):
         clean_tags = {"mlflow.runName": self.run_name, **self.tags}
         if any(not _safe_tag(key, value) for key, value in clean_tags.items()):
             raise ValueError("Tag de tracking contém campo não permitido")
-        self._run = mlflow.start_run(experiment_id=experiment_id, tags=clean_tags)
+        self._run = client.create_run(experiment_id=experiment_id, tags=clean_tags)
         self.run_id = self._run.info.run_id
 
     def log_result(self, result: dict[str, Any], *, command: str) -> None:
@@ -257,6 +259,12 @@ class TrackedRun(AbstractContextManager):
                     "operational_alert",
                     run_id=result.get("run_id"),
                     window=event.get("window"),
+                    scenario=(event.get("window") or "").partition("/")[0],
+                    feature=event.get("feature"),
+                    condition=event.get("condition"),
+                    metric=event.get("metric"),
+                    value=event.get("value"),
+                    threshold=event.get("threshold"),
                     alert_type=event.get("type"),
                     severity=event.get("severity"),
                     action=event.get("action"),
@@ -269,7 +277,7 @@ class TrackedRun(AbstractContextManager):
         if self._run is None:
             self.tags[key] = value
         else:
-            mlflow.set_tag(key, value)
+            self.client.set_tag(self.run_id, key, value)
 
 
 def _log_numeric_leaves(run: TrackedRun, value: Any, *, prefix: str, step: int = 0) -> None:
@@ -360,7 +368,6 @@ def track_operation(
 
 
 def recent_runs(settings: Settings, limit: int = 100) -> list[dict[str, Any]]:
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = MlflowClient(tracking_uri=settings.mlflow_tracking_uri)
     experiments = client.search_experiments(view_type=ViewType.ACTIVE_ONLY)
     rows = []

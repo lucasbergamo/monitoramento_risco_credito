@@ -15,6 +15,8 @@ x-development: &development
     SEED: ${SEED:-42}
     LOG_LEVEL: ${LOG_LEVEL:-INFO}
     MLFLOW_TRACKING_URI: ${MLFLOW_RUNNER_TRACKING_URI:-http://mlflow:5000}
+    MLFLOW_SUPPRESS_PRINTING_URL_TO_STDOUT: "true"
+    MLFLOW_UI_URI: ${MLFLOW_UI_URI:-http://127.0.0.1:5000}
     MLFLOW_ENABLE_TELEMETRY: "false"
     DO_NOT_TRACK: "1"
     XDG_CACHE_HOME: /tmp/cache
@@ -44,11 +46,11 @@ services:
       - ./state/mlflow:/mlflow
       - ./artifacts/runs:/mlartifacts
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)"]
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2); assert r.status == 200 and r.read() == b'OK'"]
       interval: 5s
       timeout: 3s
       retries: 12
-      start_period: 10s
+      start_period: 180s
 
   runner:
     <<: *development
@@ -71,6 +73,7 @@ services:
       PROJECT_ROOT: /app
       MLFLOW_TRACKING_URI: ${MLFLOW_RUNNER_TRACKING_URI:-http://mlflow:5000}
       TC4_TRACKING_INTEGRATION_URI: ${MLFLOW_RUNNER_TRACKING_URI:-http://mlflow:5000}
+      MLFLOW_SUPPRESS_PRINTING_URL_TO_STDOUT: "true"
       MLFLOW_ENABLE_TELEMETRY: "false"
       DO_NOT_TRACK: "1"
     # Sem bind mounts: testes usam fixtures e estado temporário dentro da imagem.

@@ -15,6 +15,13 @@ SAFE_FIELDS = frozenset(
         "run_id",
         "model_version",
         "window",
+        "scenario",
+        "feature",
+        "condition",
+        "metric",
+        "value",
+        "threshold",
+        "failure_code",
         "comparison",
         "alert_type",
         "severity",
@@ -43,17 +50,17 @@ def aggregated_fields(logger: Any, method_name: str, event_dict: dict[str, Any])
     return {key: value for key, value in event_dict.items() if key in SAFE_FIELDS}
 
 
-def configure_logging(level: str = "INFO") -> None:
+def configure_logging(level: str = "INFO", *, json_output: bool = False) -> None:
     """Configura saída JSON em stdout sem stack traces ou payloads de entrada."""
     structlog.configure(
         processors=[
             structlog.stdlib.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             aggregated_fields,
-            structlog.processors.JSONRenderer(),
+            structlog.processors.JSONRenderer(ensure_ascii=False),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, level.upper())),
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
+        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr if json_output else sys.stdout),
         cache_logger_on_first_use=False,
     )
 

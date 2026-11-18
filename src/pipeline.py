@@ -9,11 +9,17 @@ from uuid import uuid4
 
 from mlflow import MlflowClient
 
-from src.monitoring.drift import detect
 from src.monitoring.tracking import TrackingError, track_operation
 from src.simulation.scenarios import evaluate_scenarios, simulate
 from src.utils.config import Settings
+from src.utils.logger import get_logger
 from src.utils.manifest import content_hash, file_hash, read_manifest, write_manifest
+
+
+def detect(settings):
+    from src.monitoring.drift import detect as detect_operation
+
+    return detect_operation(settings)
 
 
 class PipelineStageError(RuntimeError):
@@ -164,6 +170,9 @@ def run_pipeline(settings: Settings, *, campaign_id: str | None = None) -> dict:
         raise PipelineStageError("prepare-evidence", "stage_failed") from error
 
     def run(command: str, operation) -> dict:
+        get_logger().info(
+            "campaign_stage_started", campaign_id=campaign_id, stage=command, status="running"
+        )
         try:
             result = track_operation(
                 settings,

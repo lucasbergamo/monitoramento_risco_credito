@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     state_dir: Path = Path("state")
     dataset_archive: Path | None = None
     seed: int = Field(default=42, ge=0, le=2**32 - 1)
+    mlflow_ui_uri: str = "http://127.0.0.1:5000"
     mlflow_tracking_uri: str = "http://127.0.0.1:5000"
     mlflow_runner_tracking_uri: str = "http://mlflow:5000"
     log_level: str = "INFO"
@@ -40,7 +41,7 @@ class Settings(BaseSettings):
             raise ValueError("LOG_LEVEL deve ser DEBUG, INFO, WARNING, ERROR ou CRITICAL")
         return value
 
-    @field_validator("mlflow_tracking_uri", "mlflow_runner_tracking_uri")
+    @field_validator("mlflow_tracking_uri", "mlflow_runner_tracking_uri", "mlflow_ui_uri")
     @classmethod
     def valid_tracking_uri(cls, value: str) -> str:
         uri = urlsplit(value)
@@ -52,6 +53,13 @@ class Settings(BaseSettings):
             raise ValueError("MLFLOW_TRACKING_URI exige host")
         if uri.scheme == "sqlite" and (uri.netloc or not value.startswith("sqlite:///")):
             raise ValueError("SQLite exige URI sqlite:/// com caminho de banco")
+        return value
+
+    @field_validator("mlflow_ui_uri")
+    @classmethod
+    def ui_is_http(cls, value: str) -> str:
+        if urlsplit(value).scheme not in {"http", "https"}:
+            raise ValueError("MLFLOW_UI_URI exige HTTP(S)")
         return value
 
     @model_validator(mode="after")

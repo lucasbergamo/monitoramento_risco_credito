@@ -73,7 +73,11 @@ def build_report(settings: Settings, campaign_id: str | None = None) -> dict[str
     alerts = []
     if detection is not None:
         alerts.extend(
-            event
+            {
+                "scenario": comparison.get("comparison"),
+                "window_index": comparison.get("window_index"),
+                **event,
+            }
             for comparison in detection.get("results", [])
             for event in comparison.get("alerts", [])
         )
@@ -86,6 +90,8 @@ def build_report(settings: Settings, campaign_id: str | None = None) -> dict[str
             alerts.append(
                 {
                     "type": "performance_degraded",
+                    "scenario": "concept_drift",
+                    "window_index": last_pair[0].get("window_index"),
                     "severity": "critical",
                     "condition": f"Brier pareado {increase:.6f} > {threshold:.6f}",
                     "action": "Investigar mudança de conceito e revisar desempenho supervisionado",
@@ -100,6 +106,8 @@ def build_report(settings: Settings, campaign_id: str | None = None) -> dict[str
             alerts.append(
                 {
                     "type": "rejection",
+                    "scenario": item.get("scenario"),
+                    "window_index": item.get("window_index"),
                     "severity": "warning",
                     "condition": f"Contrato rejeitou cenário na janela {item.get('window_index')}",
                     "action": "Inspecionar regra agregada e corrigir a origem do lote",
@@ -113,6 +121,7 @@ def build_report(settings: Settings, campaign_id: str | None = None) -> dict[str
         "campaign_run_ids": campaign.get("run_ids") if campaign else None,
         "tracking_status": tracking_status,
         "tracking_uri": settings.mlflow_tracking_uri,
+        "tracking_ui_uri": settings.mlflow_ui_uri,
         "run_count": len(runs),
         "runs": runs,
         "layers": {
@@ -305,6 +314,8 @@ def _write_html(path: Path, report: dict[str, Any]) -> None:
         severity = "critical" if item.get("severity") == "critical" else "warning"
         alerts.append(
             f'<li class="{severity}"><strong>{html.escape(item["type"])}</strong>: '
+            f"Cenário {html.escape(str(item.get('scenario', 'indisponível')))}, "
+            f"janela {html.escape(str(item.get('window_index', 'indisponível')))}. "
             f"{html.escape(item.get('condition', 'condição não informada'))}. "
             f"{html.escape(item.get('action', 'Ação não informada.'))}</li>"
         )
@@ -356,7 +367,8 @@ def _write_html(path: Path, report: dict[str, Any]) -> None:
             state_class = "available"
         elif name == "model":
             value = (
-                f"AUC {details['validation_roc_auc']:.4f}, Brier {details['validation_brier']:.4f}"
+                f"Validação: AUC {details['validation_roc_auc']:.4f}, "
+                f"Brier {details['validation_brier']:.4f}"
             )
             state_class = "available"
         elif name == "pipeline":
@@ -364,7 +376,9 @@ def _write_html(path: Path, report: dict[str, Any]) -> None:
             state_class = "available"
         else:
             value = (
-                f"CPU {details['cpu_seconds']:.3f}s; pico RSS {details['rss_peak_bytes']:,} bytes"
+                f"Tempo de CPU do processo: {details['cpu_seconds']:.3f} s; "
+                f"pico RSS amostrado: {details['rss_peak_bytes'] / 1024**2:.2f} MiB; "
+                f"tempo de parede da operação: {details['duration_seconds']:.3f} s"
             )
             state_class = "available"
         layer_cards.append(
@@ -386,8 +400,9 @@ li{{margin:.5rem 0}} .empty{{color:#667085}}
 .layers{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem}}
 article{{border:1px solid #d9e2ec;border-radius:.5rem;padding:1rem}}
 </style><body><h1>Observabilidade operacional</h1>
-<p>Tracking: <span class="status">{html.escape(status)}</span>. URI: <code>
-{html.escape(report["tracking_uri"])}</code></p>
+<p>Campanha: <code>{html.escape(str(report.get("campaign_id") or "indisponível"))}</code></p>
+<p>Tracking: <span class="status">{html.escape(status)}</span>.
+<a href="{html.escape(report["tracking_ui_uri"], quote=True)}">UI MLflow no host</a></p>
 <h2>Camadas operacionais</h2><section class="layers">{"".join(layer_cards)}</section>
 <h2>Execuções ({report["run_count"]})</h2><table><thead><tr>
 <th>Experimento</th><th>Run</th><th>Estado</th><th>Identificador</th>

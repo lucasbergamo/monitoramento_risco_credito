@@ -33,10 +33,6 @@ batch. Contratos bloqueiam lotes inválidos antes da inferência; cenários simu
 permitem observar mudanças de dados e de desempenho. Logs, métricas e alertas
 apoiam a investigação, com documentação de privacidade, retenção e limitações.
 
-A finalidade é educacional. O sistema não concede crédito nem toma decisões sobre
-pessoas. Vídeo e validação manual em outro computador permanecem pendentes; não há
-submissão declarada.
-
 ## Stack Tecnológica
 
 | Tecnologia | Função |
@@ -79,9 +75,7 @@ Detalhes e limitações estão no [model card](docs/model_card.md) e em
 | Detecção de drift | 25% | `make docker-demo`; [cenários](docs/evidencias/scenarios.json), [detecção](docs/evidencias/deteccao.json) e [causalidade](docs/causalidade.md) |
 | Observabilidade e logs | 20% | `make docker-report CAMPAIGN_ID=...`; [campanha](docs/evidencias/campaign.json), MLflow e [operação](docs/operacao.md) |
 | Governança | 15% | `make docker-governance`; [diagnóstico agregado](docs/evidencias/governanca.json) e [governança](docs/governanca.md) |
-| Vídeo STAR | 15% | Pendente de gravação; duração até cinco minutos e acesso externo a verificar |
-
-As evidências não substituem o vídeo nem a execução manual independente.
+| Vídeo STAR | 15% | Demonstração técnica no formato STAR, com duração de até cinco minutos |
 
 ## Estrutura do Projeto
 
@@ -136,13 +130,13 @@ cd monitoramento_risco_credito
 ### 1. Conferir o ambiente
 
 Linux ou WSL2, Git, GNU Make, Docker Engine/Desktop com daemon acessível e Docker
-Compose v2 ou posterior, filesystem POSIX gravável e porta local 5000 disponível.
+Compose 2.17 ou posterior, filesystem POSIX gravável e porta local 5000 disponível.
 O percurso Docker não exige Python nem Poetry no host.
 É necessário acesso ao Docker Hub e ao PyPI no primeiro build e na geração do lock.
 
 `docker info` verifica se o cliente consegue acessar o daemon; `docker compose
 version` mostra a versão instalada do Compose. O primeiro deve apresentar os dados
-do servidor sem erro, e o segundo deve indicar Compose v2 ou posterior:
+do servidor sem erro, e o segundo deve indicar Compose 2.17 ou posterior:
 
 ```bash
 docker info
@@ -173,7 +167,7 @@ saúde do serviço e execute as verificações de qualidade, nesta ordem:
 ```bash
 make build
 make tracking-up
-# Aguarde o MLflow ficar pronto; repita make status até retornar OK.
+# Confirma o estado após a espera automática de tracking-up.
 make status
 make docker-lint
 make docker-test
@@ -183,22 +177,32 @@ docker run --rm monitoramento-risco-credito:runtime
 Resultados esperados:
 
 - `make build`: constrói as imagens `monitoramento-risco-credito:dev` e `:runtime`, sem dados do host.
-- `make tracking-up`: inicia o servidor MLflow, mas pode retornar antes de ele estar pronto.
-- `make status`: confere o serviço e deve responder `OK`. Durante a primeira
-  inicialização podem ocorrer mensagens transitórias de conexão. Aguarde e repita
-  a consulta; prossiga somente após `OK`. Se o erro persistir, examine
-  `docker compose logs --tail=80 mlflow`, que mostra as últimas mensagens do serviço,
-  antes de repetir as etapas dependentes.
+- `make tracking-up`: inicia o servidor MLflow e aguarda o estado saudável por até
+  180 segundos, com indicação de espera. Se o prazo terminar, retorna erro e impede
+  o avanço do comando dependente. Para máquinas mais lentas, use
+  `TRACKING_WAIT_TIMEOUT=300 make tracking-up`.
+- `make status`: consulta o serviço e responde `OK` quando está saudável, sem
+  iniciar ou reiniciar containers. Se não estiver pronto, retorna erro. Examine
+  `docker compose logs --tail=80 mlflow` para conferir as últimas mensagens do serviço.
 - `make docker-lint`: verifica o código e a formatação; resultado esperado sem erros.
-- `make docker-test`: executa os testes com fixtures e cobertura; nesta versão,
-  são 155 testes, incluindo HTML/JSON Evidently e tracking real. Deve terminar sem
-  falhas. O tempo varia com o hardware, e os pontos indicam testes concluídos.
+- `make docker-test`: executa os testes com fixtures e cobertura, incluindo
+  HTML/JSON Evidently e integração HTTP com o tracking. Deve terminar sem falhas.
+  O tempo varia com o hardware, e os pontos indicam testes concluídos.
 - `docker run --rm monitoramento-risco-credito:runtime`: executa o smoke da imagem
   de produção e remove esse container ao terminar. Deve emitir o evento
   `foundation_ready` com seed 42.
 
-Os testes usam dados e modelos temporários, sem dataset ou treino anterior. O serviço
-MLflow é necessário para a execução pelo Compose; a porta 5000 fica restrita ao host.
+Os testes usam dados e modelos temporários, sem dataset ou treino anterior.
+Os comandos Docker que dependem do tracking verificam sua prontidão antes de
+executar. `make docker-lint` funciona sem MLflow. A porta 5000 fica restrita ao host.
+`TRACKING_WAIT_TIMEOUT` configura o limite em segundos para cada comando dependente;
+por exemplo, `TRACKING_WAIT_TIMEOUT=300 make docker-data`.
+
+A saída padrão apresenta um resumo e os caminhos dos artefatos. Para obter o
+resultado completo em JSON, use `make docker-inspect-data JSON=1`. Os eventos
+operacionais seguem para stderr nesse modo. `MLFLOW_UI_URI` configura o endereço
+exibido para abrir a UI no navegador, por padrão `http://127.0.0.1:5000`, sem mudar
+a URI interna de comunicação entre containers.
 
 `make lock` é um comando de manutenção: resolve dependências em container com
 Python 3.12 e Poetry 2.5.1. Use somente ao atualizar deliberadamente dependências;
@@ -279,7 +283,7 @@ make docker-promote
 somente no treino e congela a validação em `models/staging/manifest.json` junto do
 artefato local. O gate exige AUC >=0,65 e Brier menor que o Dummy na validação.
 Reprovação retorna código 2 na CLI e preserva staging para diagnóstico; current
-permanece intacto. Não reduzir o piso nem alterar parâmetros para contornar falhas.
+permanece intacto. Piso e parâmetros são definidos em `configs/model.yaml`.
 
 Resultado medido em 24/10/2026: gate aprovado, AUC 0,7789 e Brier 0,1347, contra
 Brier 0,1723 do Dummy. A permutação na validação (cinco repetições, ROC-AUC, seed 42)
@@ -311,11 +315,9 @@ scores por ID sem gravá-los. Labels e demografia são rejeitados como colunas e
 Carregamento verifica hashes, política, ordem de features e classes. Não carregar
 joblib recebido de terceiros; hashes detectam corrupção, sem autenticar sua origem.
 
-Os testes geram seus próprios dados/modelos em diretórios temporários. Um piso AUC
-1,1 passado somente à fixture impede a promoção e comprova que a versão atual não
-muda. Também são exercitadas falhas na cópia e na troca atômica, corrupção, ordem
-de features e associação de labels por ID. A política padrão continua em 0,65.
-Bundles locais antigos não são apagados automaticamente.
+Os testes usam dados e modelos temporários e cobrem promoção rejeitada, falhas de
+cópia e troca atômica, integridade dos artefatos e associação de labels por ID.
+Bundles locais antigos são preservados.
 
 Resultados, hashes e limitações no [model card](docs/model_card.md).
 Detalhes de integridade e atomicidade na [ADR 0004](docs/adr/0004-modelo-e-avaliacao.md).
@@ -332,8 +334,8 @@ make docker-demo
 
 `docker-demo` valida os dados antes da inferência, gera os cenários, associa labels
 somente depois dos scores, executa o detector e grava um manifesto em
-`artifacts/campaigns/<campaign_id>/manifest.json`. A saída JSON retorna o
-`campaign_id`, os IDs das runs e quatro cenários. O cenário `invalid` precisa ser
+`artifacts/campaigns/<campaign_id>/manifest.json`. A saída informa o `campaign_id`; o manifesto registra os IDs das runs e os
+quatro cenários. `make docker-demo JSON=1` retorna esses dados em JSON completo. O cenário `invalid` precisa ser
 rejeitado sem produzir scores; essa rejeição esperada não interrompe os demais.
 Qualquer falha de dados, modelo, detector ou tracking termina com erro operacional
 e deixa a campanha como `failed` ou incompleta, sem reutilizar uma campanha anterior.
@@ -410,22 +412,21 @@ verificado suas evidências e gerado o diagnóstico de governança.
 
 ## Governança, privacidade e limites do score
 
-O projeto reproduz, para fins acadêmicos, um classificador sobre o conjunto UCI
-Default of Credit Card Clients, publicado por Yeh em 2009. A licença indicada pela
-UCI é CC BY 4.0: a redistribuição exige atribuição, link para a licença e indicação
-de alterações. Essa licença trata dos direitos concedidos sobre o material; por si
-só não comprova consentimento dos titulares, anonimização ou autorização irrestrita
-para qualquer tratamento. A base é histórica, de Taiwan, com valores em NT$.
+O pipeline utiliza o conjunto UCI Default of Credit Card Clients, publicado por
+Yeh em 2009 sob CC BY 4.0. A redistribuição exige atribuição, link para a licença e
+indicação de alterações. A licença não comprova consentimento dos titulares nem
+anonimização. A base é histórica, de Taiwan, com valores em NT$.
 
-O estudo não concede crédito nem produz decisões sobre pessoas. A hipótese de uma
-fintech que avalia proteção do crédito é separada deste uso acadêmico. Em uma
-operação real, o art. 7º, X, da LGPD prevê a hipótese de proteção do crédito; sua
-aplicação depende do contexto e dos requisitos legais. O art. 20 disciplina a
-solicitação de revisão de decisões tomadas unicamente com base em tratamento
-automatizado que afetem os interesses do titular. O art. 7º, IV, refere-se a
-estudos por órgão de pesquisa. Este projeto não declara que sua equipe se enquadra
-nessa definição, que existe consentimento ou que qualquer hipótese legal foi
-validada para a atividade. Não se declara conformidade jurídica certificada.
+O escopo implementado é a avaliação e o monitoramento batch de um modelo sobre
+dados históricos e cenários simulados. O uso operacional para concessão de crédito
+exige avaliação de finalidade, base legal e requisitos de revisão de decisões.
+O art. 7º, X, da LGPD prevê a hipótese de proteção do crédito, cuja aplicação
+depende do contexto e dos requisitos legais. O art. 20 disciplina a solicitação de
+revisão de decisões tomadas unicamente com base em tratamento automatizado que
+afetem os interesses do titular. A hipótese de estudos por órgão de pesquisa,
+prevista no art. 7º, IV, depende do enquadramento da instituição; sua aplicação
+não é presumida neste tratamento. Esta documentação não constitui certificação
+de conformidade jurídica.
 
 A preparação local mantém origem, `record_id`, rótulo e tabela de auditoria com SEX,
 AGE, EDUCATION e MARRIAGE. O preditor recebe somente 19 variáveis financeiras;
@@ -473,8 +474,8 @@ Dados locais e artefatos operacionais permanecem no host. `make docker-retention
 apenas lista execuções de `artifacts/runs` com mais de 30 dias; a exclusão exige
 `make docker-retention DELETE=1` e alcança somente diretórios diretos dessa área.
 O comando não remove dados, modelos, evidências versionadas nem o banco/artefatos
-do MLflow em `state/mlflow`. Após confirmação do arquivamento, a eliminação dos
-dados de entrega continua manual. O prazo de 30 dias é uma política operacional
+do MLflow em `state/mlflow`. A eliminação dos dados locais é manual e deve
+considerar a política de retenção e as necessidades de reprodução. O prazo de 30 dias é uma política operacional
 deste projeto, não prazo legal universal. Consulte [governança](docs/governanca.md),
 [métricas por grupo](docs/metricas.md) e [operação](docs/operacao.md).
 

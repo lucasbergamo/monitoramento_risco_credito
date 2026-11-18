@@ -42,6 +42,7 @@ def test_explicit_config_overrides_environment_and_dotenv(tmp_path, monkeypatch)
         {"project_root": "relative"},
         {"mlflow_tracking_uri": "sqlite://server/store"},
         {"unknown_option": True},
+        {"mlflow_ui_uri": "sqlite:///tmp/store"},
     ],
 )
 def test_invalid_config_fails(overrides):

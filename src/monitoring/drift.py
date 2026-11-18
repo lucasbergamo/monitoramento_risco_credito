@@ -1,6 +1,7 @@
 """Adaptador Evidently 0.7 e diagnóstico agregado de mudanças nas features."""
 
 import json
+import warnings
 from importlib.metadata import version
 from pathlib import Path
 from typing import Literal
@@ -9,8 +10,6 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 import yaml
-from evidently import DataDefinition, Dataset, Report
-from evidently.metrics import ValueDrift
 from pydantic import BaseModel, ConfigDict, Field
 from scipy.stats import ks_2samp
 
@@ -21,6 +20,17 @@ from src.monitoring.alerts import feature_alerts, holm_adjust
 from src.utils.config import PROJECT_ROOT
 from src.utils.logger import get_logger
 from src.utils.manifest import content_hash, file_hash, read_manifest, write_manifest
+
+# Evidently 0.7.23 contém este escape inválido em um único descritor.
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message=r"invalid escape sequence '\\d'",
+        category=SyntaxWarning,
+        module=r"evidently\.descriptors\.text_match",
+    )
+    from evidently import DataDefinition, Dataset, Report
+    from evidently.metrics import ValueDrift
 
 
 class MonitoringConfig(BaseModel):

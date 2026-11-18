@@ -4,7 +4,6 @@ import json
 import os
 
 import pytest
-import structlog
 from mlflow import MlflowClient
 
 from src.monitoring.tracking import TrackingError, track_operation
@@ -14,10 +13,9 @@ from src.utils.manifest import content_hash, write_manifest
 
 
 @pytest.fixture(autouse=True)
-def isolated_logging():
-    structlog.reset_defaults()
-    yield
-    structlog.reset_defaults()
+def isolated_artifacts(tmp_path, monkeypatch):
+    """Keep embedded MLflow artifacts inside each test temporary directory."""
+    monkeypatch.chdir(tmp_path)
 
 
 def setup_campaign_root(root):
