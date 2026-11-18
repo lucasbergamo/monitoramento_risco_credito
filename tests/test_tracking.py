@@ -11,7 +11,10 @@ from src.monitoring.tracking import TrackingError, recent_runs, track_operation
 from src.utils.config import Settings
 
 
-def test_tracking_persists_run_metrics_and_aggregate_artifact(tmp_path):
+def test_tracking_persists_run_metrics_and_aggregate_artifact(
+    tmp_path, caplog, capsys, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
     settings = Settings(
         project_root=tmp_path,
         mlflow_tracking_uri=f"sqlite:///{tmp_path / 'tracking.db'}",
@@ -32,6 +35,10 @@ def test_tracking_persists_run_metrics_and_aggregate_artifact(tmp_path):
     local = client.download_artifacts(runs[0]["run_id"], "reports/summary.json")
     assert json.loads(open(local, encoding="utf-8").read()) == result
     assert runs[0]["metrics"]["resources.rss_peak_bytes"] > 0
+    restored = client.get_run(result["tracking_run_id"])
+    assert not any("git" in key for key in restored.data.tags)
+    assert "Failed to import Git" not in caplog.text
+    assert "View run" not in capsys.readouterr().out
 
 
 def test_tracking_unavailable_preserves_local_output_and_returns_error(tmp_path, monkeypatch):

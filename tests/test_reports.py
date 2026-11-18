@@ -108,6 +108,16 @@ def test_report_links_matching_drift_and_scenario_results(tmp_path, monkeypatch)
         "performance_degraded",
         "rejection",
     }
+    assert "Validação: AUC 0.7100" in document
+    assert "Cenário data_drift, janela 2" in document
+    assert "Cenário invalid, janela 0" in document
+    assert "Tempo de CPU do processo" in document
+    assert "tempo de parede da operação" in document
+    assert "MiB" in document
+    assert 'href="http://127.0.0.1:5000"' in document
+    assert "http://mlflow:5000" not in document
+    assert report["tracking_uri"] == "http://mlflow:5000"
+    assert report["layers"]["resources"]["rss_peak_bytes"] == 1000
     assert "run-current/summary.json" in document
     assert "../../data/scenarios/evaluation.json" in document
     assert "Comparação de cenários" in document
